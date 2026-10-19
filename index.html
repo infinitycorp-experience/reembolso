@@ -59,6 +59,9 @@
             #grupoTipo > *, #grupoDias > *, #tiposExtras > * { flex-shrink: 0; }
             #grupoTipo { opacity: 1; }
         }
+        @keyframes popIn { from { opacity:0; transform:translateY(16px) scale(.97); } to { opacity:1; transform:none; } }
+          .anim-pop { animation: popIn .22s ease-out; }
+
     </style>
 </head>
 <body class="min-h-screen p-3 md:p-6">
@@ -341,6 +344,62 @@
     </div>
 </div>
 
+<!-- MODAL E-MAIL -->
+<div id="modalEmail" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-50 flex items-end sm:items-center justify-center p-0 sm:p-3">
+  <div class="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden anim-pop">
+    <div class="relative p-5 bg-gradient-to-br from-[#ea4335] to-[#b31412] text-white">
+      <button onclick="fecharModal('modalEmail')" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 transition"><i class="fa-solid fa-xmark"></i></button>
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner"><i class="fa-solid fa-envelope-open-text text-lg"></i></div>
+        <div>
+          <h3 class="font-extrabold text-base">Enviar Solicitação</h3>
+          <p class="text-[11px] text-white/80">Planilha Excel + comprovantes</p>
+        </div>
+      </div>
+      <div id="emailResumo" class="grid grid-cols-3 gap-2 mt-4"></div>
+    </div>
+    <div class="p-5 space-y-3">
+      <div class="relative">
+        <label class="lbl">Para</label>
+        <i class="fa-solid fa-at absolute left-3 top-[31px] text-slate-300 text-xs"></i>
+        <input id="emailPara" type="text" inputmode="email" placeholder="financeiro@infinitycorp.com.br" class="inp py-2.5 pl-8">
+        <p id="emailErro" class="hidden text-[10px] text-red-500 font-semibold mt-1">Informe e-mail(s) válido(s).</p>
+      </div>
+      <div class="relative">
+        <label class="lbl">Cópia (opcional)</label>
+        <i class="fa-solid fa-user-group absolute left-3 top-[31px] text-slate-300 text-xs"></i>
+        <input id="emailCc" type="text" inputmode="email" placeholder="gestor@infinitycorp.com.br" class="inp py-2.5 pl-8">
+      </div>
+      <div>
+        <label class="lbl">Mensagem (opcional)</label>
+        <textarea id="emailMsg" rows="2" placeholder="Segue minha solicitação de reembolso." class="inp resize-none"></textarea>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+        <button id="btnEnviarAgora" onclick="confirmarEnvioEmail('auto')" class="py-3 rounded-xl bg-[#ea4335] hover:bg-[#c5221f] text-white text-xs font-bold shadow-lg shadow-red-100 transition flex items-center justify-center gap-2 disabled:opacity-60">
+          <i class="fa-solid fa-paper-plane"></i> Enviar agora
+        </button>
+        <button id="btnAbrirGmail" onclick="confirmarEnvioEmail('gmail')" class="py-3 rounded-xl border-2 border-slate-200 hover:border-[#ea4335] hover:text-[#ea4335] text-slate-600 text-xs font-bold transition flex items-center justify-center gap-2 disabled:opacity-60">
+          <i class="fa-brands fa-google"></i> Abrir no Gmail
+        </button>
+      </div>
+      <p class="text-[10px] text-slate-400 text-center leading-relaxed">
+        <b>Enviar agora</b>: anexa o Excel e as fotos.<br><b>Abrir no Gmail</b>: rascunho com links do Drive.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESULTADO -->
+<div id="modalResultado" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-[60] flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl anim-pop">
+    <div id="resIcone"></div>
+    <h3 id="resTitulo" class="text-lg font-extrabold text-slate-800"></h3>
+    <p id="resTexto" class="text-xs text-slate-500 mt-1 break-words"></p>
+    <div id="resDetalhe" class="mt-4"></div>
+    <button onclick="fecharModal('modalResultado')" class="mt-5 w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-white text-xs font-bold transition">Fechar</button>
+  </div>
+</div>
+
 <style type="text/tailwindcss">
     .lbl  { @apply block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1; }
     .sub  { @apply block text-[10px] text-slate-500 mb-0.5; }
@@ -418,8 +477,10 @@ function normalizar(r) {
             tipo: Number(d.tipo) || tipoDe(d.categoria),
             data: d.data || data,
             estabelecimento: d.estabelecimento || '',
-            cnpj: d.cnpj || ''
+            cnpj: d.cnpj || '',
+            arquivos: Array.isArray(d.arquivos) ? d.arquivos : (d.arquivoId ? [d.arquivoId] : [])
         }))
+
     };
 }
 
@@ -681,7 +742,8 @@ function verDetalhes(id) {
         DESPESAS_MAP[d.categoria]?.emoji || '💵',
         `${esc(d.categoria)} • ${dataBR(d.data)} <span class="text-slate-400">(Tipo ${d.tipo})</span>`,
         d.valor,
-        esc(infoEst(d)) + (d.arquivoId ? ' ' + linkAnexo(d.arquivoId) : '')
+        esc(infoEst(d)) + (d.arquivos.length ? '<br>' + d.arquivos.map((id, i) => linkAnexo(id, i + 1)).join(' &nbsp; ') : '')
+
     ));
 
 
@@ -778,7 +840,7 @@ function adicionarDespesaPrevia(d = {}) {
 
     const div = document.createElement('div');
     div.className = 'desp-row bg-slate-50/50 p-2 rounded-xl border border-slate-100 space-y-1.5';
-        div.dataset.arquivo = d.arquivoId || '';
+
 
     div.innerHTML = `
         <div class="grid grid-cols-6 sm:grid-cols-12 gap-1.5 items-center">
@@ -792,13 +854,14 @@ function adicionarDespesaPrevia(d = {}) {
             <input type="text" value="${esc(d.estabelecimento)}" placeholder="Nome do estabelecimento" class="despesa-est mini col-span-12 sm:col-span-7">
             <input type="text" value="${esc(d.cnpj)}" placeholder="CNPJ" onblur="validarCnpjCampo(this)" class="despesa-cnpj mini col-span-12 sm:col-span-5">
         </div>
-        <div class="flex items-center gap-3 text-[10px]">
-            <span class="anexo-link">${linkAnexo(d.arquivoId)}</span>
-            <label class="cursor-pointer text-slate-500 hover:text-indigo-600 font-semibold">
-                <i class="fa-solid fa-paperclip"></i> <span>${d.arquivoId ? 'Trocar' : 'Anexar'} comprovante</span>
-                <input type="file" accept="image/*,application/pdf" class="hidden" onchange="anexarComprovante(this)">
+        <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
+            <div class="anexos flex flex-wrap gap-1.5"></div>
+            <label class="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-dashed border-slate-300 text-slate-500 hover:text-indigo-600 hover:border-indigo-400 font-semibold transition">
+                <i class="fa-solid fa-paperclip"></i> <span class="txt-anexo">Adicionar comprovante</span>
+                <input type="file" accept="image/*,application/pdf" multiple class="hidden" onchange="anexarComprovante(this)">
             </label>
         </div>`;
+    renderAnexos(div, d.arquivos || []);
 
     $('containerDespesas').appendChild(div);
     calcularGeral();
@@ -850,7 +913,8 @@ async function salvarReembolso(e) {
             data: row.querySelector('.despesa-data').value || $('formData').value,
             estabelecimento: row.querySelector('.despesa-est').value.trim(),
             cnpj: row.querySelector('.despesa-cnpj').value.trim(),
-            arquivoId: row.dataset.arquivo || ''
+            arquivos: getAnexos(row)
+
         });
 
     });
@@ -955,7 +1019,8 @@ async function lerComprovante(input) {
         const resp = await postSheets({ action: 'ocr', mime, data: b64 });
         const r = await resp.json();
         if (r.erro) {
-            if (r.arquivoId) adicionarDespesaPrevia({ arquivoId: r.arquivoId });
+            if (r.arquivoId) adicionarDespesaPrevia({ arquivos: [r.arquivoId] });
+
             throw new Error(r.erro);
         }
         aplicarDespesa(r);
@@ -984,7 +1049,8 @@ function aplicarDespesa(r) {
 
     const linha = adicionarDespesaPrevia({
         categoria: cat, valor: valor.toFixed(2), data,
-        estabelecimento: r.estabelecimento || '', cnpj: r.cnpj || '', arquivoId: r.arquivoId || ''
+        estabelecimento: r.estabelecimento || '', cnpj: r.cnpj || '', arquivos: r.arquivoId ? [r.arquivoId] : []
+
     });
 
     validarCnpjCampo(linha.querySelector('.despesa-cnpj'));
@@ -1146,35 +1212,71 @@ async function gerarExcel() {
 
 async function exportarExcelFiltrado() {
     const x = await gerarExcel();
-    if (!x) return alert('Nenhum reembolso para exportar!');
+      if (!x) return mostrarResultado('info', 'Nada para exportar', 'Selecione ou filtre ao menos um reembolso.');
+
     saveAs(new Blob([x.buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), x.nome);
 
 }
 /* ===== COMPROVANTES (Google Drive) ===== */
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const urlArquivo = id => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
-const linkAnexo = id => id ? `<a href="${urlArquivo(id)}" target="_blank" rel="noopener" class="text-emerald-600 font-bold hover:underline"><i class="fa-solid fa-circle-check"></i> Ver comprovante</a>` : '';
+const linkAnexo = (id, n = '') => `<a href="${urlArquivo(id)}" target="_blank" rel="noopener" class="text-emerald-600 font-bold hover:underline"><i class="fa-solid fa-file-circle-check"></i> Comprovante ${n}</a>`;
+const getAnexos = row => { try { return JSON.parse(row.dataset.arquivos || '[]'); } catch { return []; } };
 
-async function anexarComprovante(input) {
-    const file = input.files[0];
-    input.value = '';
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) return alert('Arquivo acima de 10 MB');
-    const row = input.closest('.desp-row'), txt = input.previousElementSibling;
-    txt.innerText = 'Enviando...';
-    try {
-        const { mime, b64 } = await prepararArquivo(file);
-        const r = await (await postSheets({ action: 'upload', mime, data: b64 })).json();
-        if (r.erro) throw new Error(r.erro);
-        row.dataset.arquivo = r.arquivoId;
-        row.querySelector('.anexo-link').innerHTML = linkAnexo(r.arquivoId);
-        txt.innerText = 'Trocar comprovante';
-    } catch (e) {
-        txt.innerText = 'Anexar comprovante';
-        alert('Falha ao anexar: ' + e.message);
-    }
+function renderAnexos(row, ids) {
+    row.dataset.arquivos = JSON.stringify(ids);
+    row.querySelector('.anexos').innerHTML = ids.map((id, i) => `
+        <span class="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold">
+            <a href="${urlArquivo(id)}" target="_blank" rel="noopener"><i class="fa-solid fa-file-circle-check"></i> Comprovante ${i + 1}</a>
+            <button type="button" onclick="removerAnexo(this, ${i})" title="Remover" class="w-4 h-4 rounded hover:bg-emerald-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-[9px]"></i></button>
+        </span>`).join('');
 }
 
-/* ===== ENVIO POR E-MAIL (Gmail) ===== */
+function removerAnexo(btn, i) {
+    const row = btn.closest('.desp-row'), ids = getAnexos(row);
+    ids.splice(i, 1);
+    renderAnexos(row, ids);
+}
+
+async function anexarComprovante(input) {
+    const files = [...input.files];
+    input.value = '';
+    if (!files.length) return;
+    const row = input.closest('.desp-row'), txt = row.querySelector('.txt-anexo'), ids = getAnexos(row);
+    for (const [i, file] of files.entries()) {
+        if (file.size > 10 * 1024 * 1024) { mostrarResultado('erro', 'Arquivo muito grande', `${file.name} passa de 10 MB.`); continue; }
+        txt.innerText = `Enviando ${i + 1}/${files.length}...`;
+        try {
+            const { mime, b64 } = await prepararArquivo(file);
+            const r = await (await postSheets({ action: 'upload', mime, data: b64 })).json();
+            if (r.erro) throw new Error(r.erro);
+            ids.push(r.arquivoId);
+            renderAnexos(row, ids);
+        } catch (e) { mostrarResultado('erro', 'Falha ao anexar', e.message); }
+    }
+    txt.innerText = 'Adicionar comprovante';
+}
+
+/* ===== MODAL DE RESULTADO ===== */
+function mostrarResultado(tipo, titulo, texto, detalhe = '') {
+    const [cor, icone] = { ok: ['emerald', 'fa-check'], erro: ['red', 'fa-xmark'], info: ['amber', 'fa-circle-info'] }[tipo];
+    $('resIcone').className = `w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center text-2xl bg-${cor}-50 text-${cor}-600 ring-8 ring-${cor}-50/60`;
+    $('resIcone').innerHTML = `<i class="fa-solid ${icone}"></i>`;
+    $('resTitulo').innerText = titulo;
+    $('resTexto').innerText = texto;
+    $('resDetalhe').innerHTML = detalhe;
+    $('modalResultado').classList.remove('hidden');
+}
+
+const cardsResumo = itens => `<div class="grid grid-cols-3 gap-2">${itens.map(([k, v]) =>
+    `<div class="bg-slate-50 border border-slate-100 rounded-xl p-2"><div class="text-sm font-extrabold text-slate-800">${v}</div><div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">${k}</div></div>`).join('')}</div>`;
+
+/* ===== ENVIO POR E-MAIL ===== */
+let emailCtx = null;
+const listaEmails = s => String(s || '').split(/[,;\s]+/).map(e => e.trim()).filter(Boolean);
+const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+const isMobile = () => /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+
 function bufferParaB64(buf) {
     return new Promise((res, rej) => {
         const fr = new FileReader();
@@ -1184,72 +1286,128 @@ function bufferParaB64(buf) {
     });
 }
 
-function montarCorpoEmail(itens) {
+async function enviarPorEmail() {
+    const x = await gerarExcel();
+    if (!x) return mostrarResultado('info', 'Nada para enviar', 'Selecione ou filtre ao menos um reembolso.');
+    const arquivos = [...new Set(x.itens.flatMap(r => r.despesas.flatMap(d => d.arquivos)))];
+    const total = x.itens.reduce((a, r) => a + totalRegistro(r), 0);
+    const resp = [...new Set(x.itens.map(r => r.responsavel))].join(', ');
+    emailCtx = { ...x, arquivos, total, resp };
+
+    $('emailPara').value = Store.get('app_reembolso_email') || '';
+    $('emailCc').value = Store.get('app_reembolso_cc') || '';
+    $('emailErro').classList.add('hidden');
+    $('emailResumo').innerHTML = [['Lançamentos', x.itens.length], ['Comprovantes', arquivos.length], ['Total', brl(total)]]
+        .map(([k, v]) => `<div class="bg-white/15 rounded-xl p-2 text-center backdrop-blur"><div class="text-sm font-extrabold">${v}</div><div class="text-[9px] uppercase tracking-wider text-white/75 font-bold">${k}</div></div>`).join('');
+    $('modalEmail').classList.remove('hidden');
+    setTimeout(() => $('emailPara').focus(), 150);
+}
+
+function montarCorpoEmail(itens, msg) {
     const td = 'padding:6px 8px;border:1px solid #e2e8f0;font-size:12px';
     const linhas = [];
     itens.forEach(r => {
         const cli = r.modo === 'Geral' ? 'Geral' : r.cliente;
         if (custoBase(r) > 0) linhas.push([r.data, cli,
-            r.modo === 'Particular' ? `Quilometragem (${Math.max(0, r.kmFinal - r.kmInicial)} km)` : `Aluguel (${r.kmFinal} diária(s))`,
-            '', custoBase(r), '']);
-        r.despesas.forEach(d => linhas.push([d.data, cli, d.categoria, infoEst(d), d.valor, d.arquivoId]));
+            r.modo === 'Particular' ? `Quilometragem (${Math.max(0, r.kmFinal - r.kmInicial)} km)` : `Aluguel (${r.kmFinal} diária(s))`, '', custoBase(r), []]);
+        r.despesas.forEach(d => linhas.push([d.data, cli, d.categoria, infoEst(d), d.valor, d.arquivos]));
     });
     const total = itens.reduce((a, r) => a + totalRegistro(r), 0);
     const resp = [...new Set(itens.map(r => r.responsavel))].join(', ');
     const datas = itens.map(r => r.data).sort();
-    const th = ['Data', 'Visita', 'Descrição', 'Estabelecimento / CNPJ', 'Valor', 'Comprovante']
-        .map(h => `<th style="${td};text-align:left">${h}</th>`).join('');
+    const th = ['Data', 'Visita', 'Descrição', 'Estabelecimento / CNPJ', 'Valor', 'Comprovantes'].map(h => `<th style="${td};text-align:left">${h}</th>`).join('');
     return `<div style="font-family:Arial,sans-serif;color:#1e293b">
+        ${msg ? `<p style="font-size:13px;margin:0 0 14px">${esc(msg).replace(/\n/g, '<br>')}</p>` : ''}
         <h2 style="margin:0 0 4px">Solicitação de Reembolso</h2>
         <p style="margin:0 0 12px;font-size:13px;color:#475569">
-            <b>Responsável:</b> ${esc(resp)}<br>
-            <b>Período:</b> ${dataBR(datas[0])} a ${dataBR(datas[datas.length - 1])}<br>
-            <b>Lançamentos:</b> ${itens.length}
+            <b>Responsável:</b> ${esc(resp)}<br><b>Período:</b> ${dataBR(datas[0])} a ${dataBR(datas[datas.length - 1])}<br><b>Lançamentos:</b> ${itens.length}
         </p>
         <table style="border-collapse:collapse;width:100%">
             <tr style="background:#0f172a;color:#fff">${th}</tr>
             ${linhas.map(l => `<tr>
-                <td style="${td}">${dataBR(l[0])}</td><td style="${td}">${esc(l[1])}</td>
-                <td style="${td}">${esc(l[2])}</td><td style="${td}">${esc(l[3])}</td>
+                <td style="${td}">${dataBR(l[0])}</td><td style="${td}">${esc(l[1])}</td><td style="${td}">${esc(l[2])}</td><td style="${td}">${esc(l[3])}</td>
                 <td style="${td};text-align:right">${brl(l[4])}</td>
-                <td style="${td}">${l[5] ? `<a href="${urlArquivo(l[5])}">ver</a>` : '—'}</td></tr>`).join('')}
+                <td style="${td}">${l[5].length ? l[5].map((id, i) => `<a href="${urlArquivo(id)}">${i + 1}</a>`).join(' ') : '—'}</td></tr>`).join('')}
             <tr style="background:#0f172a;color:#fff;font-weight:bold">
                 <td style="${td}" colspan="4">TOTAL</td><td style="${td};text-align:right">${brl(total)}</td><td style="${td}"></td>
             </tr>
         </table>
-        <p style="font-size:11px;color:#94a3b8;margin-top:12px">Planilha e comprovantes em anexo. Enviado pela Central de Reembolsos.</p>
+        <p style="font-size:11px;color:#94a3b8;margin-top:12px">Enviado pela Central de Reembolsos.</p>
     </div>`;
 }
 
-async function enviarPorEmail() {
-    const x = await gerarExcel();
-    if (!x) return alert('Nenhum reembolso para enviar!');
-    const para = (prompt('Enviar para (separe vários e-mails por vírgula):', Store.get('app_reembolso_email') || '') || '').trim();
-    if (!para) return;
-    Store.set('app_reembolso_email', para);
+function corpoTexto(c, msg, excelId) {
+    const L = [];
+    if (msg) L.push(msg, '');
+    L.push(`SOLICITAÇÃO DE REEMBOLSO`, `Responsável: ${c.resp}`, `Total: ${brl(c.total)}`, '');
+    c.itens.forEach(r => {
+        L.push(`• ${dataBR(r.data)} - ${r.modo === 'Geral' ? 'Geral' : r.cliente}: ${brl(totalRegistro(r))}`);
+        r.despesas.forEach(d => L.push(`   - ${d.categoria} ${brl(d.valor)}${d.arquivos.length ? ' | ' + d.arquivos.map(urlArquivo).join(' ') : ''}`));
+    });
+    L.push('', `Planilha Excel: ${urlArquivo(excelId)}`);
+    return L.join('\n');
+}
 
-    const arquivos = [...new Set(x.itens.flatMap(r => r.despesas.map(d => d.arquivoId).filter(Boolean)))];
-    const total = x.itens.reduce((a, r) => a + totalRegistro(r), 0);
-    const resp = [...new Set(x.itens.map(r => r.responsavel))].join(', ');
+function abrirGmail(para, cc, assunto, corpo, janela) {
+    const q = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    if (!isMobile()) {   // Desktop (web ou PWA): Gmail Web
+        const url = 'https://mail.google.com/mail/?view=cm&fs=1&' + q({ to: para, cc, su: assunto, body: corpo });
+        janela ? (janela.location.href = url) : window.open(url, '_blank');
+        return;
+    }
+    const mailto = `mailto:${para}?` + q({ cc, subject: assunto, body: corpo });
+    if (isIOS) {         // iPhone: tenta o app do Gmail e, se não abrir, usa o Mail
+        location.href = 'googlegmail://co?' + q({ to: para, cc, subject: assunto, body: corpo });
+        setTimeout(() => { if (!document.hidden) location.href = mailto; }, 1500);
+    } else {             // Android: abre o Gmail (ou pergunta qual app usar)
+        location.href = mailto;
+    }
+}
 
-    const btn = $('btnEmail'), original = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Enviando...';
+async function confirmarEnvioEmail(modo) {
+    const para = listaEmails($('emailPara').value), cc = listaEmails($('emailCc').value);
+    const invalido = !para.length || [...para, ...cc].some(e => !emailOk(e));
+    $('emailErro').classList.toggle('hidden', !invalido);
+    $('emailPara').classList.toggle('!border-red-400', invalido);
+    if (invalido) return;
+    Store.set('app_reembolso_email', para.join(', '));
+    Store.set('app_reembolso_cc', cc.join(', '));
+
+    const c = emailCtx, msg = $('emailMsg').value.trim();
+    const assunto = `Solicitação de Reembolso - ${c.resp} - ${brl(c.total)}`;
+    // Abre a aba antes do await para o navegador não bloquear o pop-up
+    const janela = modo === 'gmail' && !isMobile() ? window.open('', '_blank') : null;
+
+    const btns = document.querySelectorAll('#modalEmail button');
+    const btn = $(modo === 'auto' ? 'btnEnviarAgora' : 'btnAbrirGmail'), orig = btn.innerHTML;
+    btns.forEach(b => b.disabled = true);
+    btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> ${modo === 'auto' ? 'Enviando...' : 'Preparando...'}`;
     try {
-        const r = await (await postSheets({
-            action: 'email', para,
-            assunto: `Solicitação de Reembolso - ${resp} - ${brl(total)}`,
-            html: montarCorpoEmail(x.itens),
-            excel: { nome: x.nome, data: await bufferParaB64(x.buffer) },
-            arquivos
-        })).json();
-        if (r.erro) throw new Error(r.erro);
-        alert(`✅ E-mail enviado com ${r.anexos} comprovante(s)` + (r.faltaram ? ` (${r.faltaram} só como link, por tamanho)` : '') + '.');
+        const excelB64 = await bufferParaB64(c.buffer);
+        if (modo === 'auto') {
+            const r = await (await postSheets({
+                action: 'email', para: para.join(','), cc: cc.join(','), assunto,
+                html: montarCorpoEmail(c.itens, msg), excel: { nome: c.nome, data: excelB64 }, arquivos: c.arquivos
+            })).json();
+            if (r.erro) throw new Error(r.erro);
+            fecharModal('modalEmail');
+            mostrarResultado('ok', 'E-mail enviado!', `Para: ${para.join(', ')}`,
+                cardsResumo([['Planilha', '1'], ['Anexos', r.anexos], ['Total', brl(c.total)]]) +
+                (r.faltaram ? `<p class="text-[10px] text-amber-600 font-semibold mt-2">${r.faltaram} comprovante(s) foram só como link, por causa do limite de tamanho.</p>` : ''));
+        } else {
+            const up = await (await postSheets({ action: 'upload', mime: XLSX_MIME, nome: c.nome, data: excelB64 })).json();
+            if (up.erro) throw new Error(up.erro);
+            abrirGmail(para.join(','), cc.join(','), assunto, corpoTexto(c, msg, up.arquivoId), janela);
+            fecharModal('modalEmail');
+            mostrarResultado('ok', 'Rascunho aberto no Gmail', 'Confira o e-mail e toque em Enviar no Gmail.',
+                cardsResumo([['Lançamentos', c.itens.length], ['Links', c.arquivos.length + 1], ['Total', brl(c.total)]]));
+        }
     } catch (e) {
-        alert('Erro ao enviar: ' + e.message);
+        janela?.close();
+        mostrarResultado('erro', 'Falha no envio', e.message || 'Verifique a conexão.');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = original;
+        btns.forEach(b => b.disabled = false);
+        btn.innerHTML = orig;
     }
 }
 
