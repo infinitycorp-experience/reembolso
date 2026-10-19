@@ -47,8 +47,13 @@ const Store = {
 };
 const usuarioAtual = () => Store.get('app_reembolso_usuario');
 
-function postSheets(payload) {
-    return fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+let sessao = JSON.parse(Store.get('app_reembolso_sessao') || 'null');
+
+async function postSheets(payload) {
+    const resp = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ ...payload, email: sessao?.email, pin: sessao?.pin }) });
+    const r = await resp.clone().json().catch(() => ({}));
+    if (r.auth && payload.action !== 'login') sair(r.erro);
+    return resp;
 }
 
 function normalizar(r) {
@@ -112,9 +117,12 @@ function setCloudStatus(status, text) {
 async function carregarDadosDoSheets() {
     setCloudStatus('carregando', 'Conectando ao Google Sheets...');
     try {
-        const resp = await fetch(SCRIPT_URL);
-        if (!resp.ok) throw new Error('Falha na rede');
-        reembolsos = (await resp.json()).map(normalizar);
+
+        const resp = await postSheets({ action: 'list' });
+        const dados = await resp.json();
+        if (!Array.isArray(dados)) throw new Error(dados.erro || 'Falha');
+        reembolsos = dados.map(normalizar);
+        
         setCloudStatus('sucesso', 'Google Sheets Ativo');
         atualizarSeletorResponsaveis();
         renderizarTabela();
@@ -282,6 +290,7 @@ function avisoSelecionar() {
    ===================================================================== */
 async function limparListaOuSelecionados() {
     const ids = idsSelecionados();
+      if (!ids.length && !sessao?.admin) return avisoSelecionar();
     const msg = ids.length ? `Remover os ${ids.length} lançamentos selecionados do Google Sheets?` : 'Apagar TODOS os registros da planilha?';
     if (!confirm(msg)) return;
     const btn = $('btnLimpar');
@@ -944,7 +953,7 @@ function corpoTexto(c, msg, excelId) {
 function abrirGmail(para, cc, assunto, corpo, janela) {
     const q = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
     if (!isMobile()) {
-        const url = 'https://mail.google.com/mail/?view=cm&fs=1&' + q({ to: para, cc, su: assunto, body: corpo });
+         const url = `https://mail.google.com/mail/u/${encodeURIComponent(sessao?.email || 0)}/?view=cm&fs=1&` + q({ to: para, cc, su: assunto, body: corpo });
         janela ? (janela.location.href = url) : window.open(url, '_blank');
         return;
     }
@@ -1038,20 +1047,70 @@ async function instalarApp() {
 }
 
 /* =====================================================================
+   LOGIN
+   ===================================================================== */
+function telaLogin(msg = '') {
+    let el = $('telaLogin');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'telaLogin';
+        el.className = 'fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur flex items-center justify-center p-4';
+        el.innerHTML = `
+        <form onsubmit="fazerLogin(event)" class="bg-white w-full max-w-xs rounded-2xl p-6 space-y-3 shadow-2xl text-center">
+            <img src="${LOGO_URL}" class="h-10 mx-auto mb-2" alt="">
+            <h2 class="font-extrabold text-slate-800">Central de Reembolsos</h2>
+            <input id="loginEmail" type="email" required placeholder="Seu e-mail corporativo" autocomplete="username" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
+            <input id="loginPin" type="password" inputmode="numeric" required placeholder="PIN" autocomplete="current-password" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-center tracking-[0.4em]">
+            <p id="loginErro" class="text-[11px] text-red-500 font-semibold min-h-[1em]"></p>
+            <button id="btnLogin" class="w-full bg-indigo-600 text-white rounded-xl py-2 font-bold text-sm">Entrar</button>
+        </form>`;
+        document.body.appendChild(el);
+    }
+    $('loginErro').innerText = msg;
+    el.classList.remove('hidden');
+}
+
+async function fazerLogin(e) {
+    e.preventDefault();
+    const email = $('loginEmail').value.trim().toLowerCase(), pin = $('loginPin').value.trim();
+    $('btnLogin').disabled = true;
+    sessao = { email, pin };
+    let r;
+    try { r = await (await postSheets({ action: 'login' })).json(); } catch { r = { erro: 'Falha de conexão' }; }
+    $('btnLogin').disabled = false;
+    if (r.erro) { sessao = null; $('loginErro').innerText = r.erro; return; }
+    sessao = { email, pin, ...r.usuario };
+    Store.set('app_reembolso_sessao', JSON.stringify(sessao));
+    $('telaLogin').classList.add('hidden');
+    iniciarSessao();
+}
+
+function sair(msg = '') {
+    sessao = null;
+    Store.set('app_reembolso_sessao', '');
+    reembolsos = [];
+    renderizarTabela();
+    telaLogin(msg);
+}
+
+function iniciarSessao() {
+    const adm = !!sessao?.admin;
+    Store.set('app_reembolso_usuario', sessao.nome);
+    $('formResponsavel').readOnly = !adm;
+    $('filtroResponsavel').classList.toggle('hidden', !adm);
+    $('btnEnviarAgora')?.classList.add('hidden');
+    carregarDadosDoSheets();
+}
+
+
+/* =====================================================================
    INICIALIZAÇÃO
    ===================================================================== */
 montarBotoesFiltro();
-carregarDadosDoSheets();
+sessao?.email ? iniciarSessao() : telaLogin();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW não registrado:', err));
 }
 if (isIOS || isAndroid) setTimeout(mostrarBtnInstalar, isIOS ? 0 : 3000);
 
-if (window.google?.script?.run) {
-    google.script.run.withSuccessHandler(email => {
-        if (!email) return;
-        const nome = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        Store.set('app_reembolso_usuario', nome);
-    }).obterEmailGoogle();
-}
