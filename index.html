@@ -197,6 +197,10 @@
         <input id="loginPin" type="password" inputmode="numeric" required placeholder="PIN" autocomplete="current-password" class="inp py-2.5 text-center tracking-[0.4em]">
         <p id="loginErro" class="text-[11px] text-red-500 font-semibold min-h-[1em]"></p>
         <button id="btnLogin" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 font-bold text-sm transition disabled:opacity-60">Entrar</button>
+    <button type="button" id="btnInstalarLogin" onclick="instalarApp()" class="hidden w-full border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl py-2 font-semibold text-xs items-center justify-center gap-1.5 transition">
+    <i class="fa-solid fa-download text-[10px]"></i> Instalar App
+</button>
+    
     </form>
 </div>
 
@@ -1495,24 +1499,25 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 
 let promptInstalacao = null;
 const jaInstalado = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-const mostrarBtnInstalar = () => { $('btnInstalar').classList.remove('hidden'); $('btnInstalar').classList.add('flex'); };
+const BTNS_INSTALAR = ['btnInstalar', 'btnInstalarLogin'];
+const mostrarBtnInstalar = () => BTNS_INSTALAR.forEach(id => { $(id).classList.remove('hidden'); $(id).classList.add('flex'); });
+const esconderBtnInstalar = () => BTNS_INSTALAR.forEach(id => { $(id).classList.add('hidden'); $(id).classList.remove('flex'); });
 
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); promptInstalacao = e; mostrarBtnInstalar(); });
-window.addEventListener('appinstalled', () => $('btnInstalar').classList.add('hidden'));
-if (!jaInstalado && (isIOS || isAndroid)) setTimeout(mostrarBtnInstalar, isIOS ? 0 : 3000);
+window.addEventListener('appinstalled', esconderBtnInstalar);
 
 async function instalarApp() {
     if (promptInstalacao) {
         promptInstalacao.prompt();
         await promptInstalacao.userChoice;
         promptInstalacao = null;
-        $('btnInstalar').classList.add('hidden');
+        esconderBtnInstalar();
         return;
     }
     mostrarResultado('info', 'Instalar aplicativo', isIOS
         ? 'No Safari, toque em Compartilhar (⬆️) e depois em "Adicionar à Tela de Início".'
         : 'No Chrome, toque no menu ⋮ e depois em "Instalar app" ou "Adicionar à tela inicial".');
 }
+
 </script>
 </body>
 </html>
