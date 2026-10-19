@@ -77,7 +77,7 @@
                     <h2 class="text-md font-bold text-slate-800 flex items-center gap-2">
                         <i class="fa-solid fa-wallet text-indigo-600 text-sm"></i> <span>Selecionar Reembolsos</span>
                     </h2>
-                    <p class="text-[11px] text-slate-400">Selecione abaixo as visitas que deseja incluir na exportação da Solicitação de Reembolso:</p>
+                    <p class="text-[11px] text-slate-400">Visitas a clientes e reembolsos gerais (fim de mês). Use os filtros para montar a exportação.</p>
                 </div>
                 <div class="relative w-full md:w-auto">
                     <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Filtrar Responsável:</label>
@@ -110,7 +110,7 @@
                         </th>
                         <th class="py-3 px-3">Data</th>
                         <th class="py-3 px-3">Ponto de Partida</th>
-                        <th class="py-3 px-3">Cliente</th>
+                        <th class="py-3 px-3">Cliente / Tipo</th>
                         <th class="py-3 px-3">Responsável</th>
                         <th class="py-3 px-4 text-right">Custo Relatado</th>
                         <th class="py-3 px-4 text-center">Ações</th>
@@ -145,7 +145,7 @@
 
 <!-- MODAL CADASTRO -->
 <div id="modalForm" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden z-50 flex items-center justify-center p-3">
-    <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-100 max-h-[95vh] overflow-y-auto flex flex-col">
+    <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-100 max-h-[95vh] overflow-y-auto flex flex-col">
         <div class="py-3 px-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <h3 id="modalTitulo" class="text-sm font-bold text-slate-800 flex items-center gap-1.5"></h3>
             <button onclick="fecharModalForm()" class="text-slate-400 hover:text-slate-600 w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center">
@@ -154,24 +154,31 @@
         </div>
 
         <form id="reembolsoForm" onsubmit="salvarReembolso(event)" class="p-4 space-y-3 flex-1">
+            <!-- Tipo de lançamento -->
+            <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl">
+                <button type="button" data-lanc="Visita" onclick="setLancamento('Visita')" class="tab-lanc">🏢 Visita a Cliente</button>
+                <button type="button" data-lanc="Geral" onclick="setLancamento('Geral')" class="tab-lanc">🗓️ Reembolso Geral (mês)</button>
+            </div>
+            <p id="dicaLanc" class="text-[10px] text-slate-400 -mt-1"></p>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5">
-                <div>
+                <div class="so-visita">
                     <label class="lbl">Ponto de Partida</label>
-                    <input type="text" id="formPontoPartida" required placeholder="Ex: Escritório" class="inp">
+                    <input type="text" id="formPontoPartida" placeholder="Ex: Escritório" class="inp">
                 </div>
-                <div>
+                <div class="so-visita">
                     <label class="lbl">Cliente / Visita</label>
-                    <input type="text" id="formCliente" required placeholder="Ex: Mondial" class="inp">
+                    <input type="text" id="formCliente" placeholder="Ex: Mondial" class="inp">
                 </div>
                 <div>
-                    <label class="lbl">Data</label>
+                    <label class="lbl" id="lblData">Data</label>
                     <input type="date" id="formData" required class="inp">
                 </div>
                 <div>
                     <label class="lbl">Responsável</label>
                     <input type="text" id="formResponsavel" required placeholder="Seu nome" class="inp">
                 </div>
-                <div>
+                <div class="so-visita">
                     <label class="lbl">Modo Transporte</label>
                     <select id="formModo" onchange="ajustarCamposTransporte()" class="inp bg-slate-50">
                         <option value="Particular">🚗 Particular</option>
@@ -184,8 +191,8 @@
             </div>
 
             <div>
-                <label class="lbl">Texto do Relato</label>
-                <input type="text" id="formRelato" placeholder="Ex: Evento Mondial Eletrodomésticos" class="inp">
+                <label class="lbl">Observação (opcional)</label>
+                <input type="text" id="formRelato" placeholder="Ex: Reunião de implantação com o TI do cliente" class="inp">
             </div>
 
             <!-- KM (Particular) -->
@@ -209,7 +216,7 @@
                 </div>
             </div>
 
-            <!-- Despesas + Leitura automática -->
+            <!-- Despesas -->
             <div class="space-y-2 pt-2 border-t border-dashed border-slate-100">
                 <span class="sec"><i class="fa-solid fa-receipt text-indigo-500"></i> Despesas</span>
 
@@ -220,7 +227,7 @@
                 <div id="ocrStatus" class="text-[11px]"></div>
 
                 <div id="containerDespesas" class="space-y-2"></div>
-                <button type="button" onclick="adicionarDespesaPrevia('Estacionamento', 0)" class="flex items-center gap-1 px-2.5 py-1 border border-slate-200 hover:border-indigo-500 text-slate-600 hover:text-indigo-600 rounded-lg text-[11px] font-semibold transition bg-white shadow-sm">
+                <button type="button" onclick="adicionarDespesaPrevia({ categoria: 'Combustível' })" class="flex items-center gap-1 px-2.5 py-1 border border-slate-200 hover:border-indigo-500 text-slate-600 hover:text-indigo-600 rounded-lg text-[11px] font-semibold transition bg-white shadow-sm">
                     <i class="fa-solid fa-plus text-[9px]"></i> Adicionar despesa manual
                 </button>
             </div>
@@ -245,7 +252,7 @@
 
 <!-- MODAL DETALHES -->
 <div id="modalDetalhes" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden z-50 flex items-center justify-center p-3">
-    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden max-h-[95vh] overflow-y-auto">
         <div class="py-3 px-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Visualização do Lançamento</span>
             <button onclick="fecharModal('modalDetalhes')" class="text-slate-400 hover:text-slate-600 w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center">
@@ -274,7 +281,7 @@
                 </div>
             </div>
             <div>
-                <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">📝 Texto do Relato</span>
+                <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">📝 Observação</span>
                 <div class="p-3 bg-white border-l-4 border-violet-500 rounded-r-lg shadow-sm border border-slate-100">
                     <p id="detalheRelatoText" class="text-xs text-slate-700 italic font-medium"></p>
                 </div>
@@ -301,10 +308,13 @@
 </div>
 
 <style type="text/tailwindcss">
-    .lbl { @apply block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1; }
-    .sub { @apply block text-[10px] text-slate-500 mb-0.5; }
-    .sec { @apply block text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1; }
-    .inp { @apply w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 transition; }
+    .lbl  { @apply block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1; }
+    .sub  { @apply block text-[10px] text-slate-500 mb-0.5; }
+    .sec  { @apply block text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1; }
+    .inp  { @apply w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 transition; }
+    .mini { @apply w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none bg-white focus:ring-1 focus:ring-indigo-500; }
+    .tab-lanc { @apply py-1.5 rounded-lg text-xs font-bold text-slate-500 transition; }
+    .tab-lanc.ativo { @apply bg-white text-indigo-700 shadow-sm; }
 </style>
 
 <script>
@@ -314,20 +324,24 @@
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwURetMQlh4r_vNMGEoETccKx_F7-6zJ0IkfwPQ6Fmuzr1Hs1jsLORNreZPyJZqrlcCQw/exec';
 const LOGO_URL   = 'https://i.ibb.co/p6D7KfHF/LOGO-CORP-Letra-Preta-Img-ID1.png';
 
+// tipo: 1 Deslocamento | 2 Refeição | 3 Viagens/Hospedagem | 4 Diversos
 const DESPESAS_MAP = {
+    "Combustível":    { emoji: "⛽", tipo: 1 },
     "Estacionamento": { emoji: "🅿️", tipo: 1 },
-    "Deslocamento":   { emoji: "🚗", tipo: 1 },
     "Pedágio":        { emoji: "🎫", tipo: 1 },
+    "Deslocamento":   { emoji: "🚕", tipo: 1 },
     "Refeição":       { emoji: "🍔", tipo: 2 },
+    "Hotel":          { emoji: "🏨", tipo: 3 },
     "Viagens":        { emoji: "✈️", tipo: 3 },
     "Diversos":       { emoji: "📦", tipo: 4 }
 };
-const TIPOS = ['Todos', 'App Corp', 'Particular', 'Veic Corp', 'Veic Alugado', 'Sem Custos'];
+const TIPOS = ['Todos', 'Geral', 'App Corp', 'Particular', 'Veic Corp', 'Veic Alugado', 'Sem Custos'];
 const DIAS  = ['Todos', 7, 15, 30];
 
 let reembolsos = [];
 let filtroTipoAtivo = 'Todos', filtroDiasAtivo = 'Todos', filtroResponsavelAtivo = 'Todos';
 let editingId = null, idParaExcluir = null;
+let lancAtual = 'Visita'; // 'Visita' | 'Geral'
 
 /* =====================================================================
    UTILITÁRIOS
@@ -337,31 +351,38 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&l
 const brl = v => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const dataBR = d => { const p = String(d || '').split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : (d || ''); };
 const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const infoEst = d => [d.estabelecimento, d.cnpj && 'CNPJ ' + d.cnpj].filter(Boolean).join(' - ');
+const tipoDe = cat => (DESPESAS_MAP[cat] || DESPESAS_MAP.Diversos).tipo;
 
-// Guarda o nome do usuário no aparelho (com fallback em memória)
 const Store = {
     get(k)    { try { return localStorage.getItem(k); } catch { return window['__' + k] || null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch { window['__' + k] = v; } }
 };
 const usuarioAtual = () => Store.get('app_reembolso_usuario');
 
-// Envio único para o Apps Script
 function postSheets(payload) {
     return fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
 }
 
-// Converte tudo que vem da planilha para os tipos corretos
 function normalizar(r) {
     let desp = r.despesas;
     if (typeof desp === 'string') { try { desp = JSON.parse(desp); } catch { desp = []; } }
+    const data = String(r.data || '').split('T')[0];
     return {
         ...r,
         id: Number(r.id),
-        data: String(r.data || '').split('T')[0],
+        data,
         kmInicial: Number(r.kmInicial) || 0,
         kmFinal: Number(r.kmFinal) || 0,
         valorKm: Number(r.valorKm) || 0,
-        despesas: (desp || []).map(d => ({ ...d, valor: Number(d.valor) || 0, tipo: Number(d.tipo) || 4 }))
+        despesas: (desp || []).map(d => ({
+            ...d,
+            valor: Number(d.valor) || 0,
+            tipo: Number(d.tipo) || tipoDe(d.categoria),
+            data: d.data || data,
+            estabelecimento: d.estabelecimento || '',
+            cnpj: d.cnpj || ''
+        }))
     };
 }
 
@@ -404,7 +425,6 @@ async function carregarDadosDoSheets() {
     }
 }
 
-// Se estiver rodando dentro do Apps Script, pega o e-mail Google automaticamente
 window.addEventListener('load', () => {
     if (window.google?.script?.run) {
         google.script.run.withSuccessHandler(email => {
@@ -470,9 +490,10 @@ function obterItensFiltrados() {
    ===================================================================== */
 function badgeModo(modo) {
     const m = {
-        'Veic Corp':  ['blue',   'fa-car',          'Veic Corp'],
-        'App Corp':   ['violet', 'fa-mobile-screen', 'App Corp'],
-        'Sem Custos': ['slate',  'fa-ban',           'Sem Custos']
+        'Geral':      ['emerald', 'fa-calendar-days',  'Geral'],
+        'Veic Corp':  ['blue',    'fa-car',            'Veic Corp'],
+        'App Corp':   ['violet',  'fa-mobile-screen',  'App Corp'],
+        'Sem Custos': ['slate',   'fa-ban',            'Sem Custos']
     }[modo] || ['slate', 'fa-ban', modo];
     return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-${m[0]}-50 text-${m[0]}-700 border border-${m[0]}-100"><i class="fa-solid ${m[1]} text-[9px]"></i> ${m[2]}</span>`;
 }
@@ -485,12 +506,16 @@ function renderizarTabela() {
     } else {
         body.innerHTML = lista.map(r => {
             const total = totalRegistro(r);
-            const custo = (r.modo === 'Particular' || r.modo === 'Veic Alugado' || total > 0) ? brl(total) : badgeModo(r.modo);
+            const geral = r.modo === 'Geral';
+            const custo = (geral || r.modo === 'Particular' || r.modo === 'Veic Alugado' || total > 0) ? brl(total) : badgeModo(r.modo);
+            const cliente = geral
+                ? `${badgeModo('Geral')} <span class="text-[10px] text-slate-400 ml-1">${r.despesas.length} despesa(s)</span>`
+                : esc(r.cliente);
             return `<tr class="hover:bg-slate-50/50 transition">
                 <td class="py-3 px-5 text-center"><input type="checkbox" data-id="${r.id}" onchange="atualizarContadoresLote()" class="item-checkbox w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 cursor-pointer"></td>
                 <td class="py-3 px-3 text-slate-500">${dataBR(r.data)}</td>
                 <td class="py-3 px-3 text-slate-600 font-semibold">${esc(r.pontoPartida) || '—'}</td>
-                <td class="py-3 px-3 font-bold text-slate-800">${esc(r.cliente)}</td>
+                <td class="py-3 px-3 font-bold text-slate-800">${cliente}</td>
                 <td class="py-3 px-3 text-slate-400">${esc(r.responsavel)}</td>
                 <td class="py-3 px-4 text-right font-bold text-indigo-600">${custo}</td>
                 <td class="py-3 px-4 text-center">
@@ -560,16 +585,20 @@ function fecharModal(id) {
 function verDetalhes(id) {
     const r = reembolsos.find(x => x.id === Number(id));
     if (!r) return;
+    const geral = r.modo === 'Geral';
 
-    $('detalhePontoPartida').innerText = r.pontoPartida || 'Não especificado';
-    $('detalheCliente').innerText = r.cliente;
+    $('detalhePontoPartida').innerText = geral ? 'Reembolso Geral' : (r.pontoPartida || 'Não especificado');
+    $('detalheCliente').innerText = geral ? `${r.despesas.length} despesa(s)` : r.cliente;
     $('detalheResponsavel').innerText = r.responsavel;
     $('detalheIniciais').innerText = String(r.responsavel || '?').split(' ').filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase();
     $('detalheData').innerText = dataBR(r.data);
     $('detalheRelatoText').innerText = r.relato || 'Nenhuma observação registrada.';
 
-    const linha = (icone, texto, valor) =>
-        `<div class="flex justify-between border-b border-slate-100 py-1.5"><span class="flex items-center gap-1">${icone} ${texto}</span><span class="font-bold">${brl(valor)}</span></div>`;
+    const linha = (icone, texto, valor, sub = '') =>
+        `<div class="flex justify-between gap-3 border-b border-slate-100 py-1.5">
+            <span><span class="flex items-center gap-1">${icone} ${texto}</span>${sub ? `<span class="block text-[10px] text-slate-400 mt-0.5">${sub}</span>` : ''}</span>
+            <span class="font-bold whitespace-nowrap">${brl(valor)}</span>
+        </div>`;
 
     let html = '';
     if (r.modo === 'Particular') {
@@ -578,15 +607,20 @@ function verDetalhes(id) {
     } else if (r.modo === 'Veic Alugado') {
         html += linha('<i class="fa-solid fa-key text-slate-400"></i>', `Diárias (${r.kmFinal} x ${brl(r.valorKm)})`, custoBase(r));
     }
-    r.despesas.forEach(d => html += linha(DESPESAS_MAP[d.categoria]?.emoji || '💵', `${esc(d.categoria)} (Tipo ${d.tipo})`, d.valor));
+    r.despesas.forEach(d => html += linha(
+        DESPESAS_MAP[d.categoria]?.emoji || '💵',
+        `${esc(d.categoria)} • ${dataBR(d.data)} <span class="text-slate-400">(Tipo ${d.tipo})</span>`,
+        d.valor,
+        esc(infoEst(d))
+    ));
 
     const total = totalRegistro(r);
     $('detalhesValoresExtras').innerHTML = html || `<div class="text-center py-2 text-slate-400">Sem custos reembolsáveis associados.</div>`;
 
     const badge = $('detalheBadge');
     let cor, conteudo;
-    if (r.modo === 'Particular' || r.modo === 'Veic Alugado' || total > 0) {
-        const rotulo = r.modo === 'Particular' ? 'Particular' : r.modo === 'Veic Alugado' ? 'Veículo Alugado' : 'Despesas';
+    if (geral || r.modo === 'Particular' || r.modo === 'Veic Alugado' || total > 0) {
+        const rotulo = geral ? 'Geral' : r.modo === 'Particular' ? 'Particular' : r.modo === 'Veic Alugado' ? 'Veículo Alugado' : 'Despesas';
         cor = 'emerald'; conteudo = `<i class="fa-solid fa-sack-dollar"></i> Reembolso ${rotulo}: ${brl(total)}`;
     } else if (r.modo === 'Veic Corp') { cor = 'blue';   conteudo = '<i class="fa-solid fa-building-flag"></i> Veículo Corporativo'; }
     else if (r.modo === 'App Corp')    { cor = 'violet'; conteudo = '<i class="fa-solid fa-mobile-screen"></i> Aplicativo Corporativo'; }
@@ -600,6 +634,20 @@ function verDetalhes(id) {
 /* =====================================================================
    FORMULÁRIO
    ===================================================================== */
+function setLancamento(tipo) {
+    lancAtual = tipo;
+    const geral = tipo === 'Geral';
+    document.querySelectorAll('.tab-lanc').forEach(b => b.classList.toggle('ativo', b.dataset.lanc === tipo));
+    document.querySelectorAll('.so-visita').forEach(el => el.classList.toggle('hidden', geral));
+    $('formPontoPartida').required = !geral;
+    $('formCliente').required = !geral;
+    $('lblData').innerText = geral ? 'Data de Fechamento' : 'Data da Visita';
+    $('dicaLanc').innerText = geral
+        ? 'Despesas do mês sem cliente específico. Cada despesa tem sua própria data.'
+        : 'Todos os gastos abaixo são vinculados a este cliente.';
+    ajustarCamposTransporte();
+}
+
 function abrirModalForm() {
     if (editingId === null) {
         $('reembolsoForm').reset();
@@ -608,10 +656,10 @@ function abrirModalForm() {
         $('containerDespesas').innerHTML = '';
         $('formData').value = hojeISO();
         $('formResponsavel').value = filtroResponsavelAtivo !== 'Todos' ? filtroResponsavelAtivo : (usuarioAtual() || '');
+        setLancamento('Visita');
     }
     $('ocrStatus').innerHTML = '';
     $('modalForm').classList.remove('hidden');
-    ajustarCamposTransporte();
 }
 
 function fecharModalForm() { $('modalForm').classList.add('hidden'); editingId = null; }
@@ -620,69 +668,70 @@ function editarRegistro(id) {
     const r = reembolsos.find(x => x.id === Number(id));
     if (!r) return;
     editingId = r.id;
-    abrirModalForm();
+    $('reembolsoForm').reset();
+    $('containerDespesas').innerHTML = '';
 
     $('modalTitulo').innerHTML = `<i class="fa-solid fa-pen-to-square text-indigo-600"></i> <span>Editar Custos & Reembolso</span>`;
     $('btnSalvarTexto').innerText = 'Atualizar Reembolso';
     $('formPontoPartida').value = r.pontoPartida || '';
-    $('formCliente').value = r.cliente || '';
+    $('formCliente').value = r.modo === 'Geral' ? '' : (r.cliente || '');
     $('formData').value = r.data;
     $('formResponsavel').value = r.responsavel || '';
-    $('formModo').value = r.modo;
     $('formRelato').value = r.relato || '';
+    if (r.modo !== 'Geral') $('formModo').value = r.modo;
 
     const alugado = r.modo === 'Veic Alugado';
-    $('formKmInicial').value   = alugado ? 0 : r.kmInicial;
-    $('formKmFinal').value     = alugado ? 0 : r.kmFinal;
-    $('formValorKm').value     = alugado ? 1.5 : (r.valorKm || 1.5);
+    $('formKmInicial').value   = r.modo === 'Particular' ? r.kmInicial : 0;
+    $('formKmFinal').value     = r.modo === 'Particular' ? r.kmFinal : 0;
+    $('formValorKm').value     = r.modo === 'Particular' ? (r.valorKm || 1.5) : 1.5;
     $('formQtdDiarias').value  = alugado ? (r.kmFinal || 1) : 1;
     $('formValorDiaria').value = alugado ? r.valorKm : 0;
 
-    $('containerDespesas').innerHTML = '';
-    r.despesas.forEach(d => adicionarDespesaPrevia(d.categoria, d.valor));
-    ajustarCamposTransporte();
+    r.despesas.forEach(d => adicionarDespesaPrevia(d));
+    setLancamento(r.modo === 'Geral' ? 'Geral' : 'Visita');
+    $('ocrStatus').innerHTML = '';
+    $('modalForm').classList.remove('hidden');
 }
 
 function ajustarCamposTransporte() {
-    const modo = $('formModo').value;
+    const modo = lancAtual === 'Geral' ? 'Geral' : $('formModo').value;
     $('secaoKM').className = modo === 'Particular' ? 'space-y-2 pt-2 border-t border-dashed border-slate-100' : 'hidden';
     $('secaoAluguel').className = modo === 'Veic Alugado' ? 'pt-2 border-t border-dashed border-slate-100' : 'hidden';
     calcularGeral();
 }
 
-function adicionarDespesaPrevia(categoria, valor) {
-    const id = 'd' + Date.now() + Math.floor(Math.random() * 1e6);
-    const tipo = (DESPESAS_MAP[categoria] || DESPESAS_MAP.Diversos).tipo;
+function adicionarDespesaPrevia(d = {}) {
+    const categoria = DESPESAS_MAP[d.categoria] ? d.categoria : 'Diversos';
     const opcoes = Object.entries(DESPESAS_MAP)
         .map(([k, v]) => `<option value="${k}" ${k === categoria ? 'selected' : ''}>${v.emoji} ${k}</option>`).join('');
 
     const div = document.createElement('div');
-    div.id = id;
-    div.className = 'grid grid-cols-12 gap-2 items-center bg-slate-50/50 p-2 rounded-xl border border-slate-100';
+    div.className = 'desp-row bg-slate-50/50 p-2 rounded-xl border border-slate-100 space-y-1.5';
     div.innerHTML = `
-        <div class="col-span-5">
-            <select onchange="atualizarTipoBadge('${id}', this.value)" class="despesa-cat w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none bg-white">${opcoes}</select>
+        <div class="grid grid-cols-12 gap-1.5 items-center">
+            <select onchange="this.closest('.desp-row').querySelector('.badge-tipo').innerText = 'T' + tipoDe(this.value)" class="despesa-cat mini col-span-4">${opcoes}</select>
+            <span class="badge-tipo col-span-1 text-center py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-50 text-indigo-600 border border-indigo-100">T${tipoDe(categoria)}</span>
+            <input type="date" value="${esc(d.data || $('formData').value || hojeISO())}" class="despesa-data mini col-span-3">
+            <input type="number" step="0.01" inputmode="decimal" value="${Number(d.valor) || 0}" oninput="this.closest('.desp-row').classList.remove('ring-2','ring-amber-400'); calcularGeral()" class="despesa-val mini col-span-3 text-right font-bold">
+            <button type="button" onclick="this.closest('.desp-row').remove(); calcularGeral()" class="col-span-1 text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark text-sm"></i></button>
         </div>
-        <div class="col-span-3 text-center">
-            <span class="badge-tipo inline-block px-2 py-0.5 rounded-md text-[10px] font-extrabold tracking-wider bg-indigo-50 text-indigo-600 border border-indigo-100">TIPO ${tipo}</span>
-        </div>
-        <div class="col-span-3">
-            <input type="number" step="0.01" inputmode="decimal" value="${Number(valor) || 0}" oninput="this.closest('[id]').classList.remove('ring-2','ring-amber-400'); calcularGeral()" class="despesa-val w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold outline-none text-slate-700 bg-white text-right">
-        </div>
-        <div class="col-span-1 text-center">
-            <button type="button" onclick="document.getElementById('${id}').remove(); calcularGeral()" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark text-sm"></i></button>
+        <div class="grid grid-cols-12 gap-1.5">
+            <input type="text" value="${esc(d.estabelecimento)}" placeholder="Nome do estabelecimento" class="despesa-est mini col-span-7">
+            <input type="text" value="${esc(d.cnpj)}" placeholder="CNPJ" onblur="validarCnpjCampo(this)" class="despesa-cnpj mini col-span-5">
         </div>`;
     $('containerDespesas').appendChild(div);
     calcularGeral();
     return div;
 }
 
-function atualizarTipoBadge(id, cat) {
-    $(id).querySelector('.badge-tipo').innerText = `TIPO ${(DESPESAS_MAP[cat] || DESPESAS_MAP.Diversos).tipo}`;
+function validarCnpjCampo(el) {
+    const v = el.value.trim();
+    el.classList.toggle('!border-red-400', !!v && !cnpjValido(v));
+    el.title = v && !cnpjValido(v) ? 'CNPJ inválido' : '';
 }
 
 function calcularGeral() {
-    const modo = $('formModo').value;
+    const modo = lancAtual === 'Geral' ? 'Geral' : $('formModo').value;
     const km = Math.max(0, (+$('formKmFinal').value || 0) - (+$('formKmInicial').value || 0));
     const qtd = parseInt($('formQtdDiarias').value) || 0;
     const aluguel = qtd * (+$('formValorDiaria').value || 0);
@@ -694,35 +743,51 @@ function calcularGeral() {
     if (modo === 'Particular') transporte = km * (+$('formValorKm').value || 0);
     if (modo === 'Veic Alugado') transporte = aluguel;
 
-    const extras = [...document.querySelectorAll('#containerDespesas .despesa-val')].reduce((a, i) => a + (+i.value || 0), 0);
+    const vals = [...document.querySelectorAll('#containerDespesas .despesa-val')];
+    const extras = vals.reduce((a, i) => a + (+i.value || 0), 0);
 
     $('resumoAcumulado').innerText =
         modo === 'Particular'   ? `${km} KM rodados • ${brl(extras)} extras` :
         modo === 'Veic Alugado' ? `${qtd} Diárias • ${brl(extras)} extras` :
-                                  `${brl(extras)} em despesas`;
+                                  `${vals.length} despesa(s) • ${brl(extras)}`;
     $('valorTotalAcumulado').innerText = brl(transporte + extras);
 }
 
 async function salvarReembolso(e) {
     e.preventDefault();
+    const geral = lancAtual === 'Geral';
+    const modo = geral ? 'Geral' : $('formModo').value;
+    const responsavel = $('formResponsavel').value.trim();
+
+    const despesas = [];
+    document.querySelectorAll('#containerDespesas .desp-row').forEach(row => {
+        const categoria = row.querySelector('.despesa-cat').value;
+        const valor = +row.querySelector('.despesa-val').value || 0;
+        if (valor > 0) despesas.push({
+            id: Date.now() + Math.random(),
+            categoria, tipo: tipoDe(categoria), valor,
+            data: row.querySelector('.despesa-data').value || $('formData').value,
+            estabelecimento: row.querySelector('.despesa-est').value.trim(),
+            cnpj: row.querySelector('.despesa-cnpj').value.trim()
+        });
+    });
+    if (geral && !despesas.length) return alert('Adicione ao menos uma despesa no reembolso geral.');
+
     const btn = $('btnSalvar');
     btn.disabled = true;
     $('btnSalvarTexto').innerText = 'Enviando...';
     $('salvarIcon').className = 'fa-solid fa-spinner animate-spin text-[10px]';
-
-    const modo = $('formModo').value;
-    const responsavel = $('formResponsavel').value.trim();
     Store.set('app_reembolso_usuario', responsavel);
 
     const registro = {
         id: editingId ?? Date.now(),
         data: $('formData').value,
-        pontoPartida: $('formPontoPartida').value.trim(),
-        cliente: $('formCliente').value.trim(),
+        pontoPartida: geral ? '' : $('formPontoPartida').value.trim(),
+        cliente: geral ? 'Reembolso Geral' : $('formCliente').value.trim(),
         relato: $('formRelato').value.trim(),
         responsavel, modo,
         kmInicial: 0, kmFinal: 0, valorKm: 0,
-        despesas: []
+        despesas
     };
 
     if (modo === 'Particular') {
@@ -734,21 +799,14 @@ async function salvarReembolso(e) {
         registro.valorKm = +$('formValorDiaria').value || 0;            // valor da diária
     }
 
-    document.querySelectorAll('#containerDespesas > div').forEach(row => {
-        const categoria = row.querySelector('.despesa-cat').value;
-        const valor = +row.querySelector('.despesa-val').value || 0;
-        if (valor > 0) registro.despesas.push({
-            id: Date.now() + Math.random(), categoria,
-            tipo: (DESPESAS_MAP[categoria] || DESPESAS_MAP.Diversos).tipo, valor
-        });
-    });
-
     try {
-        await postSheets({ action: 'save', record: registro });
+        const resp = await postSheets({ action: 'save', record: registro });
+        const r = await resp.json().catch(() => ({}));
+        if (r.erro) throw new Error(r.erro);
         fecharModalForm();
         await carregarDadosDoSheets();
-    } catch {
-        alert('Erro ao salvar no Google Sheets. Verifique a conexão.');
+    } catch (err) {
+        alert('Erro ao salvar no Google Sheets: ' + (err.message || 'verifique a conexão.'));
     } finally {
         btn.disabled = false;
         $('btnSalvarTexto').innerText = editingId !== null ? 'Atualizar Reembolso' : 'Salvar Reembolso';
@@ -765,7 +823,6 @@ function ocrMsg(html, tipo) {
     $('ocrStatus').innerHTML = html;
 }
 
-// Reduz a foto (máx. 1600px, JPEG); PDF segue como está
 function prepararArquivo(file) {
     return new Promise((res, rej) => {
         if (file.type === 'application/pdf') {
@@ -822,28 +879,26 @@ async function lerComprovante(input) {
 
 function aplicarDespesa(r) {
     const alertas = [];
-    const primeira = $('containerDespesas').children.length === 0;
     const cat = DESPESAS_MAP[r.categoria] ? r.categoria : 'Diversos';
     const valor = Number(r.valor) || 0;
     if (!(valor > 0)) alertas.push('valor');
 
-    const linha = adicionarDespesaPrevia(cat, valor.toFixed(2));
-
-    // Data válida: até 90 dias atrás e nunca no futuro
+    let data = $('formData').value;
     if (r.data && /^\d{4}-\d{2}-\d{2}$/.test(r.data)) {
+        data = r.data;
         const dias = (Date.now() - new Date(r.data + 'T12:00')) / 864e5;
-        if (dias < -1 || dias > 90) alertas.push('data fora do período');
-        else if (primeira && editingId === null) $('formData').value = r.data;
-        else if (r.data !== $('formData').value) alertas.push(`data do cupom ${dataBR(r.data)} diferente do lançamento`);
+        if (dias < -1 || dias > 90) alertas.push(`data ${dataBR(r.data)} fora do período (90 dias)`);
+        else if (lancAtual === 'Visita' && r.data !== $('formData').value) alertas.push(`data do cupom ${dataBR(r.data)} diferente da visita`);
     } else alertas.push('data');
 
     if (r.cnpj && !cnpjValido(r.cnpj)) alertas.push('CNPJ');
     if (Number(r.confianca) < 0.8) alertas.push('leitura incerta');
 
-    // Estabelecimento e CNPJ vão para o relato (rastreabilidade)
-    const info = [r.estabelecimento, r.cnpj && 'CNPJ ' + r.cnpj].filter(Boolean).join(' - ');
-    const rel = $('formRelato');
-    if (info) rel.value = rel.value ? `${rel.value} | ${info}` : info;
+    const linha = adicionarDespesaPrevia({
+        categoria: cat, valor: valor.toFixed(2), data,
+        estabelecimento: r.estabelecimento || '', cnpj: r.cnpj || ''
+    });
+    validarCnpjCampo(linha.querySelector('.despesa-cnpj'));
 
     if (alertas.length) {
         linha.classList.add('ring-2', 'ring-amber-400');
@@ -872,8 +927,12 @@ function imagemParaBase64(url) {
 }
 
 async function exportarExcelFiltrado() {
-    const itens = obterItensFiltrados().sort((a, b) => a.data.localeCompare(b.data));
-    if (!itens.length) return alert('Nenhum reembolso com os filtros ativos para exportar!');
+    // Se houver selecionados, exporta só eles; senão, tudo que está filtrado
+    const marcados = [...document.querySelectorAll('.item-checkbox:checked')].map(cb => Number(cb.dataset.id));
+    let itens = obterItensFiltrados();
+    if (marcados.length) itens = itens.filter(r => marcados.includes(r.id));
+    itens.sort((a, b) => a.data.localeCompare(b.data));
+    if (!itens.length) return alert('Nenhum reembolso para exportar!');
 
     const FINO = { style: 'thin', color: { argb: 'FF000000' } };
     const BORDA = { top: FINO, bottom: FINO, left: FINO, right: FINO };
@@ -883,12 +942,13 @@ async function exportarExcelFiltrado() {
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Reembolso', { views: [{ showGridLines: true }] });
-    ws.columns = [3, 14, 25, 28, 16, 24, 14, 12, 8, 15].map(width => ({ width }));
+    ws.columns = [3, 12, 20, 24, 16, 38, 12, 12, 7, 14].map(width => ({ width }));
 
     // Cabeçalho
+    const soGeral = itens.every(v => v.modo === 'Geral');
     ws.mergeCells('B1:J3');
     const titulo = ws.getCell('B1');
-    titulo.value = 'SOLICITAÇÃO DE REEMBOLSO COMERCIAL';
+    titulo.value = soGeral ? 'SOLICITAÇÃO DE REEMBOLSO GERAL' : 'SOLICITAÇÃO DE REEMBOLSO COMERCIAL';
     titulo.font = { name: 'Arial', size: 16, bold: true };
     titulo.alignment = { vertical: 'middle', horizontal: 'center' };
     const MEDIO = { style: 'medium', color: { argb: 'FF000000' } };
@@ -906,30 +966,30 @@ async function exportarExcelFiltrado() {
 
     // Títulos das colunas
     ws.getRow(4).height = 15;
-    ws.mergeCells('E5:F5');
-    const heads = { 2: 'DATA', 3: 'PONTO DE PARTIDA', 4: 'VISITA', 5: 'CUSTOS EXTRAS', 7: 'KM/DIÁRIAS', 8: 'VALOR UNIT', 9: 'TIPO', 10: 'R$' };
+    const heads = { 2: 'DATA', 3: 'PONTO DE PARTIDA', 4: 'VISITA', 5: 'DESCRIÇÃO', 6: 'ESTABELECIMENTO / CNPJ', 7: 'KM/DIÁRIAS', 8: 'VALOR UNIT', 9: 'TIPO', 10: 'R$' };
     const hRow = ws.getRow(5);
     hRow.height = 24;
     for (let c = 2; c <= 10; c++) {
         const cell = hRow.getCell(c);
-        if (heads[c]) cell.value = heads[c];
+        cell.value = heads[c];
         cell.fill = PRETO; cell.font = FONTE_BRANCA(9); cell.border = BORDA;
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     }
 
     // Monta as linhas
     const linhas = [];
     itens.forEach((v, i) => {
-        const base = { fill: i % 2 ? 'FFF4F6F9' : 'FFFFFFFF', data: v.data, partida: v.pontoPartida || '—', cliente: v.cliente };
+        const geral = v.modo === 'Geral';
+        const base = { fill: i % 2 ? 'FFF4F6F9' : 'FFFFFFFF', data: v.data, partida: geral ? '—' : (v.pontoPartida || '—'), cliente: geral ? 'Geral' : v.cliente };
         if (v.modo === 'Particular') {
             const km = Math.max(0, v.kmFinal - v.kmInicial);
-            if (km > 0) linhas.push({ ...base, desc: '', qtd: km, unit: v.valorKm, tipo: 1, total: km * v.valorKm });
+            if (km > 0) linhas.push({ ...base, desc: 'Quilometragem', qtd: km, unit: v.valorKm, tipo: 1, total: km * v.valorKm });
         } else if (v.modo === 'Veic Alugado' && custoBase(v) > 0) {
             linhas.push({ ...base, desc: `Aluguel (${v.kmFinal} Diária${v.kmFinal === 1 ? '' : 's'})`, qtd: v.kmFinal, unit: v.valorKm, tipo: 4, total: custoBase(v) });
-        } else {
+        } else if (!geral && !v.despesas.length) {
             linhas.push({ ...base, desc: v.modo === 'Veic Alugado' ? 'Veículo Alugado' : v.modo });
         }
-        v.despesas.forEach(d => linhas.push({ ...base, desc: d.categoria, tipo: d.tipo, total: d.valor }));
+        v.despesas.forEach(d => linhas.push({ ...base, data: d.data || v.data, desc: d.categoria, est: infoEst(d), tipo: d.tipo, total: d.valor }));
     });
 
     // Grade (mínimo 15 linhas)
@@ -938,10 +998,9 @@ async function exportarExcelFiltrado() {
     for (let i = 0; i < total; i++, idx++) {
         const row = ws.getRow(idx);
         row.height = 20;
-        ws.mergeCells(`E${idx}:F${idx}`);
         const l = linhas[i];
         if (l) {
-            const vals = { 2: dataBR(l.data), 3: l.partida, 4: l.cliente, 5: l.desc, 7: l.qtd ?? null, 8: l.unit ?? null, 9: l.tipo ?? null, 10: l.total ?? null };
+            const vals = { 2: dataBR(l.data), 3: l.partida, 4: l.cliente, 5: l.desc, 6: l.est || '', 7: l.qtd ?? null, 8: l.unit ?? null, 9: l.tipo ?? null, 10: l.total ?? null };
             Object.entries(vals).forEach(([c, val]) => row.getCell(+c).value = val);
             row.getCell(7).numFmt = '#,##0.0';
             row.getCell(8).numFmt = MOEDA;
@@ -951,14 +1010,14 @@ async function exportarExcelFiltrado() {
             const cell = row.getCell(c);
             cell.font = { name: 'Arial', size: 9 };
             cell.border = BORDA;
-            cell.alignment = { vertical: 'middle', horizontal: c === 10 ? 'right' : 'center' };
+            cell.alignment = { vertical: 'middle', horizontal: c === 10 ? 'right' : c === 6 ? 'left' : 'center', wrapText: c === 6 };
             if (l) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: l.fill } };
         }
     }
 
     // Legenda
     const ini = idx;
-    ['1. = Despesas com Deslocamento', '2. = Despesas com Refeições', '3. = Despesas com Viagens', '4. = Despesas Diversas / Aluguel']
+    ['1. = Deslocamento (Combustível, Estac., Pedágio)', '2. = Refeições', '3. = Viagens / Hotel', '4. = Diversas / Aluguel']
         .forEach((txt, i) => {
             const r = ini + i;
             ws.mergeCells(`B${r}:C${r}`);
@@ -989,7 +1048,8 @@ async function exportarExcelFiltrado() {
     set('J', { formula: `SUM(J6:J${ini - 1})` }, MOEDA);
 
     const buffer = await wb.xlsx.writeBuffer();
-    const nome = (filtroResponsavelAtivo !== 'Todos' ? filtroResponsavelAtivo.replace(/\s+/g, '_') + '_' : '') + hojeISO();
+    const prefixo = soGeral ? 'Geral_' : '';
+    const nome = prefixo + (filtroResponsavelAtivo !== 'Todos' ? filtroResponsavelAtivo.replace(/\s+/g, '_') + '_' : '') + hojeISO();
     saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Solicitacao_Reembolso_${nome}.xlsx`);
 }
 
