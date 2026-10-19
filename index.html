@@ -92,7 +92,7 @@
             </div>
 
             <div class="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8 pt-1.5 border-t border-slate-100/60">
-                <div class="flex flex-wrap items-center gap-1.5 text-[11px]" id="grupoTipo">
+                <div class="flex flex-wrap items-center gap-1.5 text-[11px] opacity-60 hover:opacity-100 transition" id="grupoTipo">
                     <span class="font-bold text-slate-400 tracking-wide uppercase mr-1">Filtrar Tipo:</span>
                 </div>
                 <div class="flex flex-wrap items-center gap-1.5 text-[11px]" id="grupoDias">
@@ -315,6 +315,8 @@
     .mini { @apply w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none bg-white focus:ring-1 focus:ring-indigo-500; }
     .tab-lanc { @apply py-1.5 rounded-lg text-xs font-bold text-slate-500 transition; }
     .tab-lanc.ativo { @apply bg-white text-indigo-700 shadow-sm; }
+    .tab-lanc[data-lanc="Geral"] { @apply hover:text-emerald-600; }
+    .tab-lanc[data-lanc="Geral"].ativo { @apply bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200; }
 </style>
 
 <script>
@@ -336,6 +338,7 @@ const DESPESAS_MAP = {
     "Diversos":       { emoji: "📦", tipo: 4 }
 };
 const TIPOS = ['Todos', 'Geral', 'App Corp', 'Particular', 'Veic Corp', 'Veic Alugado', 'Sem Custos'];
+const TIPOS_VISIVEIS = ['Todos', 'Geral'];
 const DIAS  = ['Todos', 7, 15, 30];
 
 let reembolsos = [];
@@ -444,10 +447,23 @@ const CLS_OFF = 'px-3 py-1 rounded-full font-medium border border-slate-200 bg-w
 const clsOn = cor => `px-3 py-1 rounded-full font-medium border border-${cor} bg-${cor} text-white transition shadow-sm`;
 
 function montarBotoesFiltro() {
-    $('grupoTipo').insertAdjacentHTML('beforeend', TIPOS.map(t =>
-        `<button data-tipo="${t}" onclick="filtrarTipo('${t}')" class="${t === 'Todos' ? clsOn('orange-500') : CLS_OFF}">${t}</button>`).join(''));
+    const btnTipo = t => `<button data-tipo="${t}" onclick="filtrarTipo('${t}')" class="${t === 'Todos' ? clsOn('orange-500') : CLS_OFF}">${t}</button>`;
+    $('grupoTipo').insertAdjacentHTML('beforeend',
+        TIPOS.filter(t => TIPOS_VISIVEIS.includes(t)).map(btnTipo).join('') +
+        `<span id="tiposExtras" class="hidden flex-wrap items-center gap-1.5">${TIPOS.filter(t => !TIPOS_VISIVEIS.includes(t)).map(btnTipo).join('')}</span>` +
+        `<button type="button" onclick="toggleTiposExtras()" title="Mais filtros" class="w-6 h-6 rounded-full border border-slate-200 bg-white text-slate-400 hover:text-orange-500 hover:border-orange-300 transition flex items-center justify-center">
+            <i id="iconTiposExtras" class="fa-solid fa-chevron-right text-[9px] transition-transform"></i>
+        </button>`);
     $('grupoDias').insertAdjacentHTML('beforeend', DIAS.map(d =>
         `<button data-dias="${d}" onclick="filtrarDias('${d}')" class="${d === 'Todos' ? clsOn('emerald-600') : CLS_OFF}">${d === 'Todos' ? 'Todos' : d + ' dias'}</button>`).join(''));
+}
+
+function toggleTiposExtras() {
+    const el = $('tiposExtras');
+    const abrir = el.classList.contains('hidden');
+    el.classList.toggle('hidden', !abrir);
+    el.classList.toggle('flex', abrir);
+    $('iconTiposExtras').style.transform = abrir ? 'rotate(180deg)' : '';
 }
 
 function filtrarTipo(t) {
@@ -465,12 +481,7 @@ function filtrarResponsavel(n) { filtroResponsavelAtivo = n; renderizarTabela();
 function atualizarSeletorResponsaveis() {
     const sel = $('filtroResponsavel');
     const nomes = [...new Set(reembolsos.map(r => r.responsavel).filter(Boolean))].sort();
-    const usuario = usuarioAtual();
-    let alvo = 'Todos';
-    if (usuario) {
-        alvo = nomes.find(n => n.trim().toLowerCase() === usuario.trim().toLowerCase()) || usuario;
-        if (!nomes.includes(alvo)) nomes.push(alvo);
-    }
+    const alvo = nomes.includes(filtroResponsavelAtivo) ? filtroResponsavelAtivo : 'Todos';
     sel.innerHTML = '<option value="Todos">👤 Todos os Responsáveis</option>' +
         nomes.map(n => `<option value="${esc(n)}">👤 ${esc(n)}</option>`).join('');
     sel.value = filtroResponsavelAtivo = alvo;
