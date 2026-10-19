@@ -10,7 +10,8 @@
     <meta name="theme-color" content="#ea580c">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Reembolsos">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="images/android-192x192.png">
+    <link rel="icon" type="image/png" href="images/favicon-180.png" id="dynamic-favicon" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -164,8 +165,12 @@
                 <button id="btnLimpar" onclick="limparListaOuSelecionados()" class="border border-slate-200 hover:bg-red-50 text-slate-500 hover:text-red-600 font-semibold py-1.5 px-3.5 rounded-xl text-xs transition flex items-center gap-1">
                     <i class="fa-regular fa-trash-can text-[10px]"></i> <span id="btnLimparTexto">Limpar Lista</span>
                 </button>
+
+                <button id="btnEmail" onclick="enviarPorEmail()" class="bg-[#ea4335] hover:bg-[#c5221f] text-white font-bold py-2.5 px-5 rounded-xl text-xs shadow-sm transition flex items-center gap-2 disabled:opacity-60">
+    <i class="fa-solid fa-envelope text-[13px]"></i> Enviar por E-mail
+</button>
                 <button onclick="exportarExcelFiltrado()" class="bg-[#107c41] hover:bg-[#0d6233] text-white font-bold py-2.5 px-5 rounded-xl text-xs shadow-sm transition flex items-center gap-2">
-                    <i class="fa-solid fa-file-excel text-[13px]"></i> Gerar Solicitação de Reembolso
+                    <i class="fa-solid fa-file-excel text-[13px]"></i> Gerar Arquivo Excel
                 </button>
             </div>
         </div>
@@ -185,8 +190,8 @@
         <form id="reembolsoForm" onsubmit="salvarReembolso(event)" class="p-4 space-y-3 flex-1">
             <!-- Tipo de lançamento -->
             <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl">
-                <button type="button" data-lanc="Visita" onclick="setLancamento('Visita')" class="tab-lanc">🏢 Visita a Cliente</button>
-                <button type="button" data-lanc="Geral" onclick="setLancamento('Geral')" class="tab-lanc">🗓️ Reembolso Geral (mês)</button>
+                <button type="button" data-lanc="Visita" onclick="setLancamento('Visita')" class="tab-lanc">🏢 Visita Específica</button>
+                <button type="button" data-lanc="Geral" onclick="setLancamento('Geral')" class="tab-lanc">🗓️ Reembolso Geral (Mês)</button>
             </div>
             <p id="dicaLanc" class="text-[10px] text-slate-400 -mt-1"></p>
 
@@ -250,7 +255,7 @@
                 <span class="sec"><i class="fa-solid fa-receipt text-indigo-500"></i> Despesas</span>
 
                 <label class="cursor-pointer flex items-center justify-center gap-2 py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition">
-                    <i class="fa-solid fa-camera"></i> Ler comprovante (foto ou PDF)
+                    <i class="fa-solid fa-camera"></i> Ler Comprovante (Foto ou PDF)
                     <input type="file" accept="image/*,application/pdf" class="hidden" onchange="lerComprovante(this)">
                 </label>
                 <div id="ocrStatus" class="text-[11px]"></div>
@@ -676,8 +681,9 @@ function verDetalhes(id) {
         DESPESAS_MAP[d.categoria]?.emoji || '💵',
         `${esc(d.categoria)} • ${dataBR(d.data)} <span class="text-slate-400">(Tipo ${d.tipo})</span>`,
         d.valor,
-        esc(infoEst(d))
+        esc(infoEst(d)) + (d.arquivoId ? ' ' + linkAnexo(d.arquivoId) : '')
     ));
+
 
     const total = totalRegistro(r);
     $('detalhesValoresExtras').innerHTML = html || `<div class="text-center py-2 text-slate-400">Sem custos reembolsáveis associados.</div>`;
@@ -772,6 +778,8 @@ function adicionarDespesaPrevia(d = {}) {
 
     const div = document.createElement('div');
     div.className = 'desp-row bg-slate-50/50 p-2 rounded-xl border border-slate-100 space-y-1.5';
+        div.dataset.arquivo = d.arquivoId || '';
+
     div.innerHTML = `
         <div class="grid grid-cols-6 sm:grid-cols-12 gap-1.5 items-center">
             <select onchange="this.closest('.desp-row').querySelector('.badge-tipo').innerText = 'T' + tipoDe(this.value)" class="despesa-cat mini col-span-4">${opcoes}</select>
@@ -783,7 +791,15 @@ function adicionarDespesaPrevia(d = {}) {
         <div class="grid grid-cols-12 gap-1.5">
             <input type="text" value="${esc(d.estabelecimento)}" placeholder="Nome do estabelecimento" class="despesa-est mini col-span-12 sm:col-span-7">
             <input type="text" value="${esc(d.cnpj)}" placeholder="CNPJ" onblur="validarCnpjCampo(this)" class="despesa-cnpj mini col-span-12 sm:col-span-5">
+        </div>
+        <div class="flex items-center gap-3 text-[10px]">
+            <span class="anexo-link">${linkAnexo(d.arquivoId)}</span>
+            <label class="cursor-pointer text-slate-500 hover:text-indigo-600 font-semibold">
+                <i class="fa-solid fa-paperclip"></i> <span>${d.arquivoId ? 'Trocar' : 'Anexar'} comprovante</span>
+                <input type="file" accept="image/*,application/pdf" class="hidden" onchange="anexarComprovante(this)">
+            </label>
         </div>`;
+
     $('containerDespesas').appendChild(div);
     calcularGeral();
     return div;
@@ -833,8 +849,10 @@ async function salvarReembolso(e) {
             categoria, tipo: tipoDe(categoria), valor,
             data: row.querySelector('.despesa-data').value || $('formData').value,
             estabelecimento: row.querySelector('.despesa-est').value.trim(),
-            cnpj: row.querySelector('.despesa-cnpj').value.trim()
+            cnpj: row.querySelector('.despesa-cnpj').value.trim(),
+            arquivoId: row.dataset.arquivo || ''
         });
+
     });
     if (geral && !despesas.length) return alert('Adicione ao menos uma despesa no reembolso geral.');
 
@@ -930,13 +948,18 @@ async function lerComprovante(input) {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) return ocrMsg('❌ Arquivo acima de 10 MB', 'erro');
 
-    ocrMsg('<i class="fa-solid fa-spinner animate-spin"></i> Lendo comprovante...', 'info');
+    ocrMsg('<i class="fa-solid fa-spinner animate-spin"></i> Lendo comprovante... (pode levar até 30s)', 'info');
+
     try {
         const { mime, b64 } = await prepararArquivo(file);
         const resp = await postSheets({ action: 'ocr', mime, data: b64 });
         const r = await resp.json();
-        if (r.erro) throw new Error(r.erro);
+        if (r.erro) {
+            if (r.arquivoId) adicionarDespesaPrevia({ arquivoId: r.arquivoId });
+            throw new Error(r.erro);
+        }
         aplicarDespesa(r);
+
     } catch (e) {
         ocrMsg(`❌ Não foi possível ler (${esc(e.message)}). Preencha manualmente.`, 'erro');
     }
@@ -961,8 +984,9 @@ function aplicarDespesa(r) {
 
     const linha = adicionarDespesaPrevia({
         categoria: cat, valor: valor.toFixed(2), data,
-        estabelecimento: r.estabelecimento || '', cnpj: r.cnpj || ''
+        estabelecimento: r.estabelecimento || '', cnpj: r.cnpj || '', arquivoId: r.arquivoId || ''
     });
+
     validarCnpjCampo(linha.querySelector('.despesa-cnpj'));
 
     if (alertas.length) {
@@ -991,13 +1015,15 @@ function imagemParaBase64(url) {
     });
 }
 
-async function exportarExcelFiltrado() {
+async function gerarExcel() {
+
     // Se houver selecionados, exporta só eles; senão, tudo que está filtrado
     const marcados = [...document.querySelectorAll('.item-checkbox:checked')].map(cb => Number(cb.dataset.id));
     let itens = obterItensFiltrados();
     if (marcados.length) itens = itens.filter(r => marcados.includes(r.id));
     itens.sort((a, b) => a.data.localeCompare(b.data));
-    if (!itens.length) return alert('Nenhum reembolso para exportar!');
+        if (!itens.length) return null;
+
 
     const FINO = { style: 'thin', color: { argb: 'FF000000' } };
     const BORDA = { top: FINO, bottom: FINO, left: FINO, right: FINO };
@@ -1115,7 +1141,116 @@ async function exportarExcelFiltrado() {
     const buffer = await wb.xlsx.writeBuffer();
     const prefixo = soGeral ? 'Geral_' : '';
     const nome = prefixo + (filtroResponsavelAtivo !== 'Todos' ? filtroResponsavelAtivo.replace(/\s+/g, '_') + '_' : '') + hojeISO();
-    saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Solicitacao_Reembolso_${nome}.xlsx`);
+        return { buffer, nome: `Solicitacao_Reembolso_${nome}.xlsx`, itens };
+}
+
+async function exportarExcelFiltrado() {
+    const x = await gerarExcel();
+    if (!x) return alert('Nenhum reembolso para exportar!');
+    saveAs(new Blob([x.buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), x.nome);
+
+}
+/* ===== COMPROVANTES (Google Drive) ===== */
+const urlArquivo = id => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
+const linkAnexo = id => id ? `<a href="${urlArquivo(id)}" target="_blank" rel="noopener" class="text-emerald-600 font-bold hover:underline"><i class="fa-solid fa-circle-check"></i> Ver comprovante</a>` : '';
+
+async function anexarComprovante(input) {
+    const file = input.files[0];
+    input.value = '';
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) return alert('Arquivo acima de 10 MB');
+    const row = input.closest('.desp-row'), txt = input.previousElementSibling;
+    txt.innerText = 'Enviando...';
+    try {
+        const { mime, b64 } = await prepararArquivo(file);
+        const r = await (await postSheets({ action: 'upload', mime, data: b64 })).json();
+        if (r.erro) throw new Error(r.erro);
+        row.dataset.arquivo = r.arquivoId;
+        row.querySelector('.anexo-link').innerHTML = linkAnexo(r.arquivoId);
+        txt.innerText = 'Trocar comprovante';
+    } catch (e) {
+        txt.innerText = 'Anexar comprovante';
+        alert('Falha ao anexar: ' + e.message);
+    }
+}
+
+/* ===== ENVIO POR E-MAIL (Gmail) ===== */
+function bufferParaB64(buf) {
+    return new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(fr.result.split(',')[1]);
+        fr.onerror = rej;
+        fr.readAsDataURL(new Blob([buf]));
+    });
+}
+
+function montarCorpoEmail(itens) {
+    const td = 'padding:6px 8px;border:1px solid #e2e8f0;font-size:12px';
+    const linhas = [];
+    itens.forEach(r => {
+        const cli = r.modo === 'Geral' ? 'Geral' : r.cliente;
+        if (custoBase(r) > 0) linhas.push([r.data, cli,
+            r.modo === 'Particular' ? `Quilometragem (${Math.max(0, r.kmFinal - r.kmInicial)} km)` : `Aluguel (${r.kmFinal} diária(s))`,
+            '', custoBase(r), '']);
+        r.despesas.forEach(d => linhas.push([d.data, cli, d.categoria, infoEst(d), d.valor, d.arquivoId]));
+    });
+    const total = itens.reduce((a, r) => a + totalRegistro(r), 0);
+    const resp = [...new Set(itens.map(r => r.responsavel))].join(', ');
+    const datas = itens.map(r => r.data).sort();
+    const th = ['Data', 'Visita', 'Descrição', 'Estabelecimento / CNPJ', 'Valor', 'Comprovante']
+        .map(h => `<th style="${td};text-align:left">${h}</th>`).join('');
+    return `<div style="font-family:Arial,sans-serif;color:#1e293b">
+        <h2 style="margin:0 0 4px">Solicitação de Reembolso</h2>
+        <p style="margin:0 0 12px;font-size:13px;color:#475569">
+            <b>Responsável:</b> ${esc(resp)}<br>
+            <b>Período:</b> ${dataBR(datas[0])} a ${dataBR(datas[datas.length - 1])}<br>
+            <b>Lançamentos:</b> ${itens.length}
+        </p>
+        <table style="border-collapse:collapse;width:100%">
+            <tr style="background:#0f172a;color:#fff">${th}</tr>
+            ${linhas.map(l => `<tr>
+                <td style="${td}">${dataBR(l[0])}</td><td style="${td}">${esc(l[1])}</td>
+                <td style="${td}">${esc(l[2])}</td><td style="${td}">${esc(l[3])}</td>
+                <td style="${td};text-align:right">${brl(l[4])}</td>
+                <td style="${td}">${l[5] ? `<a href="${urlArquivo(l[5])}">ver</a>` : '—'}</td></tr>`).join('')}
+            <tr style="background:#0f172a;color:#fff;font-weight:bold">
+                <td style="${td}" colspan="4">TOTAL</td><td style="${td};text-align:right">${brl(total)}</td><td style="${td}"></td>
+            </tr>
+        </table>
+        <p style="font-size:11px;color:#94a3b8;margin-top:12px">Planilha e comprovantes em anexo. Enviado pela Central de Reembolsos.</p>
+    </div>`;
+}
+
+async function enviarPorEmail() {
+    const x = await gerarExcel();
+    if (!x) return alert('Nenhum reembolso para enviar!');
+    const para = (prompt('Enviar para (separe vários e-mails por vírgula):', Store.get('app_reembolso_email') || '') || '').trim();
+    if (!para) return;
+    Store.set('app_reembolso_email', para);
+
+    const arquivos = [...new Set(x.itens.flatMap(r => r.despesas.map(d => d.arquivoId).filter(Boolean)))];
+    const total = x.itens.reduce((a, r) => a + totalRegistro(r), 0);
+    const resp = [...new Set(x.itens.map(r => r.responsavel))].join(', ');
+
+    const btn = $('btnEmail'), original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Enviando...';
+    try {
+        const r = await (await postSheets({
+            action: 'email', para,
+            assunto: `Solicitação de Reembolso - ${resp} - ${brl(total)}`,
+            html: montarCorpoEmail(x.itens),
+            excel: { nome: x.nome, data: await bufferParaB64(x.buffer) },
+            arquivos
+        })).json();
+        if (r.erro) throw new Error(r.erro);
+        alert(`✅ E-mail enviado com ${r.anexos} comprovante(s)` + (r.faltaram ? ` (${r.faltaram} só como link, por tamanho)` : '') + '.');
+    } catch (e) {
+        alert('Erro ao enviar: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    }
 }
 
 /* =====================================================================
