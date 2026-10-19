@@ -360,17 +360,22 @@
     </div>
     <div class="p-5 space-y-3">
       <div class="relative">
-        <label class="lbl">Para</label>
-        <i class="fa-solid fa-at absolute left-3 top-[31px] text-slate-300 text-xs"></i>
-        <input id="emailPara" type="text" inputmode="email" placeholder="financeiro@infinitycorp.com.br" class="inp py-2.5 pl-8">
-        <p id="emailErro" class="hidden text-[10px] text-red-500 font-semibold mt-1">Informe e-mail(s) válido(s).</p>
-      </div>
-      <div class="relative">
-        <label class="lbl">Cópia (opcional)</label>
-        <i class="fa-solid fa-user-group absolute left-3 top-[31px] text-slate-300 text-xs"></i>
-        <input id="emailCc" type="text" inputmode="email" placeholder="gestor@infinitycorp.com.br" class="inp py-2.5 pl-8">
-      </div>
-      <div>
+       <div>
+  <label class="lbl">Para</label>
+  <div class="relative">
+    <i class="fa-solid fa-at absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
+    <input id="emailPara" type="text" inputmode="email" placeholder="financeiro@infinitycorp.com.br" class="inp py-2.5 !pl-9">
+  </div>
+  <p id="emailErro" class="hidden text-[10px] text-red-500 font-semibold mt-1">Informe e-mail(s) válido(s).</p>
+</div>
+<div>
+  <label class="lbl">Cópia (opcional)</label>
+  <div class="relative">
+    <i class="fa-solid fa-user-group absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
+    <input id="emailCc" type="text" inputmode="email" placeholder="gestor@infinitycorp.com.br" class="inp py-2.5 !pl-9">
+  </div>
+</div>
+
         <label class="lbl">Mensagem (opcional)</label>
         <textarea id="emailMsg" rows="2" placeholder="Segue minha solicitação de reembolso." class="inp resize-none"></textarea>
       </div>
@@ -675,6 +680,15 @@ function atualizarContadoresLote() {
     $('contadorSelecionados').innerText = sel;
     $('btnLimparTexto').innerText = sel ? 'Limpar Selecionados' : 'Limpar Lista';
     $('selectAll').checked = $('selectAllMobile').checked = todos > 0 && sel === todos;
+}
+const idsSelecionados = () => [...document.querySelectorAll('.item-checkbox:checked')].map(cb => Number(cb.dataset.id));
+
+function avisoSelecionar() {
+    mostrarResultado('info', 'Nenhum reembolso selecionado', 'Marque na lista os reembolsos que deseja exportar ou enviar.');
+    document.querySelectorAll('.item-checkbox').forEach(cb => {
+        cb.classList.add('ring-4', 'ring-amber-300');
+        setTimeout(() => cb.classList.remove('ring-4', 'ring-amber-300'), 2500);
+    });
 }
 
 /* =====================================================================
@@ -1084,10 +1098,9 @@ function imagemParaBase64(url) {
 async function gerarExcel() {
 
     // Se houver selecionados, exporta só eles; senão, tudo que está filtrado
-    const marcados = [...document.querySelectorAll('.item-checkbox:checked')].map(cb => Number(cb.dataset.id));
-    let itens = obterItensFiltrados();
-    if (marcados.length) itens = itens.filter(r => marcados.includes(r.id));
-    itens.sort((a, b) => a.data.localeCompare(b.data));
+        const marcados = idsSelecionados();
+    if (!marcados.length) return null;
+    const itens = reembolsos.filter(r => marcados.includes(r.id)).sort((a, b) => a.data.localeCompare(b.data));
         if (!itens.length) return null;
 
 
@@ -1212,7 +1225,8 @@ async function gerarExcel() {
 
 async function exportarExcelFiltrado() {
     const x = await gerarExcel();
-      if (!x) return mostrarResultado('info', 'Nada para exportar', 'Selecione ou filtre ao menos um reembolso.');
+          if (!x) return avisoSelecionar();
+
 
     saveAs(new Blob([x.buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), x.nome);
 
@@ -1288,7 +1302,8 @@ function bufferParaB64(buf) {
 
 async function enviarPorEmail() {
     const x = await gerarExcel();
-    if (!x) return mostrarResultado('info', 'Nada para enviar', 'Selecione ou filtre ao menos um reembolso.');
+        if (!x) return avisoSelecionar();
+
     const arquivos = [...new Set(x.itens.flatMap(r => r.despesas.flatMap(d => d.arquivos)))];
     const total = x.itens.reduce((a, r) => a + totalRegistro(r), 0);
     const resp = [...new Set(x.itens.map(r => r.responsavel))].join(', ');
@@ -1424,12 +1439,13 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 // Botão "Instalar App" (Android: prompt nativo | iOS: instrução manual)
 let promptInstalacao = null;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isAndroid = /android/i.test(navigator.userAgent);
 const jaInstalado = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 const mostrarBtnInstalar = () => { $('btnInstalar').classList.remove('hidden'); $('btnInstalar').classList.add('flex'); };
 
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); promptInstalacao = e; mostrarBtnInstalar(); });
 window.addEventListener('appinstalled', () => $('btnInstalar').classList.add('hidden'));
-if (isIOS && !jaInstalado) mostrarBtnInstalar();
+if (!jaInstalado && (isIOS || isAndroid)) setTimeout(mostrarBtnInstalar, isIOS ? 0 : 3000);
 
 async function instalarApp() {
     if (promptInstalacao) {
@@ -1439,8 +1455,11 @@ async function instalarApp() {
         $('btnInstalar').classList.add('hidden');
         return;
     }
-    if (isIOS) alert('No iPhone: abra no Safari, toque em Compartilhar (⬆️) e depois em "Adicionar à Tela de Início".');
+    mostrarResultado('info', 'Instalar aplicativo', isIOS
+        ? 'No Safari, toque em Compartilhar (⬆️) e depois em "Adicionar à Tela de Início".'
+        : 'No Chrome, toque no menu ⋮ e depois em "Instalar app" ou "Adicionar à tela inicial".');
 }
+
 </script>
 </body>
 </html>
