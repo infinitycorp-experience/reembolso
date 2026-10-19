@@ -1,10 +1,12 @@
 {
-  "id": "./",
+  "id": "/reembolso/",
   "name": "Central de Reembolsos - Infinity Corp",
   "short_name": "Reembolsos",
+  "description": "Lançamento e envio de reembolsos",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#f8fafc",
   "theme_color": "#ea580c",
   "icons": [
@@ -13,4 +15,3 @@
     { "src": "images/android-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
-
