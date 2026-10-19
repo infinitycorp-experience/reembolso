@@ -1,24 +1,22 @@
-const CACHE = 'reembolso-v1';
-const ARQUIVOS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE = 'reembolso-v3';
+const ARQS = ['./', './index.html', './manifest.json', './images/android-192x192.png', './images/android-512x512.png'];
 
 self.addEventListener('install', e => {
-    e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQUIVOS)));
-    self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQS)));
+  self.skipWaiting();
 });
-
 self.addEventListener('activate', e => {
-    e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));
-    self.clients.claim();
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));
+  self.clients.claim();
+});
+self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return; // não intercepta o Apps Script
+  if (e.request.mode === 'navigate') {
+    e.respondWith(fetch(e.request).catch(() => caches.match('./index.html')));
+  } else {
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  }
 });
 
-// Só arquivos do próprio site. Apps Script/CDNs passam direto
-self.addEventListener('fetch', e => {
-    const url = new URL(e.request.url);
-    if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-    e.respondWith(
-        fetch(e.request)
-            .then(r => { const copia = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copia)); return r; })
-            .catch(() => caches.match(e.request))
-    );
-});
 
