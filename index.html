@@ -262,7 +262,8 @@
 
             <div>
                 <label class="lbl">Observação (opcional)</label>
-                <input type="text" id="formRelato" placeholder="Informe qualquer observação para ajudar a identificação " class="input">
+                <input type="text" id="formRelato" placeholder="Informe qualquer observação para ajudar a identificação" class="inp">
+
             </div>
 
             <!-- KM (Particular) -->
@@ -368,6 +369,7 @@
                 </div>
             </div>
             <div id="detalhesValoresExtras" class="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-1.5 text-xs text-slate-600"></div>
+            <div id="detalheEnvio"></div>
             <span id="detalheBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold shadow-sm border"></span>
         </div>
     </div>
@@ -503,7 +505,8 @@ const dataBR = d => { const p = String(d || '').split('-'); return p.length === 
 const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 const infoEst = d => [d.estabelecimento, d.cnpj && 'CNPJ ' + d.cnpj].filter(Boolean).join(' - ');
 const tipoDe = cat => (DESPESAS_MAP[cat] || DESPESAS_MAP.Diversos).tipo;
-const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 const isAndroid = /android/i.test(navigator.userAgent);
 const isMobile = () => isIOS || isAndroid;
 
@@ -744,6 +747,7 @@ const mqMobile = matchMedia('(max-width: 767px)');
 mqMobile.addEventListener('change', () => renderizarTabela());
 
 function renderizarTabela() {
+    const marcados = new Set(idsSelecionados());   // ← primeira linha
     const lista = obterItensFiltrados();
     const body = $('tabelaBody'), cards = $('listaMobile');
     body.innerHTML = cards.innerHTML = '';
@@ -758,7 +762,7 @@ function renderizarTabela() {
         };
     };
 
-    const chk = r => `<input type="checkbox" data-id="${r.id}" onchange="atualizarContadoresLote()" class="item-checkbox w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer">`;
+    const chk = r => `<input type="checkbox" data-id="${r.id}" ${marcados.has(r.id) ? 'checked' : ''} onchange="atualizarContadoresLote()" class="item-checkbox w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer">`;
     const acoes = r => `
         <button onclick="verDetalhes(${r.id})" class="text-[11px] text-indigo-600 hover:underline font-semibold">🔍 Ver detalhes</button>
         <span class="text-slate-200">|</span>
@@ -842,7 +846,10 @@ async function limparListaOuSelecionados() {
     const msg = ids.length
         ? `Mover os ${ids.length} lançamentos selecionados para a Lixeira?`
         : 'Mover TODOS os registros para a Lixeira?';
-    if (!confirm(msg)) return;
+    if (ids.length) { if (!confirm(msg)) return; }
+else if (prompt(`${msg}\n\nDigite EXCLUIR para confirmar:`)?.trim().toUpperCase() !== 'EXCLUIR')
+    return mostrarResultado('info', 'Exclusão cancelada', 'Nenhum registro foi removido.');
+
     const btn = $('btnLimpar');
     btn.disabled = true;
     setCloudStatus('carregando', 'Removendo...');
@@ -861,9 +868,13 @@ async function confirmarExclusao() {
     const id = idParaExcluir;
     fecharModal('modalConfirmacaoExcluir');
     setCloudStatus('carregando', 'Excluindo...');
-    try { await postSheets({ action: 'delete', id }); } catch {}
+    try {
+        const r = await (await postSheets({ action: 'delete', id })).json();
+        if (r.erro && !r.auth) mostrarResultado('erro', 'Não foi possível excluir', r.erro);
+    } catch { mostrarResultado('erro', 'Falha de conexão', 'Tente novamente.'); }
     await carregarDadosDoSheets();
 }
+
 
 function fecharModal(id) {
     $(id).classList.add('hidden');
@@ -884,6 +895,12 @@ function verDetalhes(id) {
     $('detalheIniciais').innerText = String(r.responsavel || '?').split(' ').filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase();
     $('detalheData').innerText = dataBR(r.data);
     $('detalheRelatoText').innerText = r.relato || 'Nenhuma observação registrada.';
+    const env = r.enviadoEm ? new Date(String(r.enviadoEm).replace(' ', 'T')) : null;
+$('detalheEnvio').innerHTML = env
+    ? `<div class="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-700 font-semibold">
+         <i class="fa-solid fa-paper-plane"></i> Enviado em ${esc(isNaN(env) ? r.enviadoEm : env.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))}${r.enviadoPara ? ' para ' + esc(r.enviadoPara) : ''}
+       </div>` : '';
+
 
     const linha = (icone, texto, valor, sub = '') =>
         `<div class="flex justify-between gap-3 border-b border-slate-100 py-1.5">
@@ -1078,7 +1095,7 @@ async function salvarReembolso(e) {
         });
     });
     if (geral && !despesas.length) return alert('Adicione ao menos uma despesa no reembolso geral.');
-
+    const antigo = editingId !== null ? reembolsos.find(x => x.id === editingId) : null;
     const registro = {
         id: editingId ?? Date.now(),
         data: $('formData').value,
@@ -1087,7 +1104,9 @@ async function salvarReembolso(e) {
         relato: $('formRelato').value.trim(),
         responsavel, modo,
         kmInicial: 0, kmFinal: 0, valorKm: 0,
-        despesas
+        despesas,
+        enviadoEm: antigo?.enviadoEm || '',
+        enviadoPara: antigo?.enviadoPara || ''
     };
     if (modo === 'Particular') {
         registro.kmInicial = +$('formKmInicial').value || 0;
@@ -1233,6 +1252,7 @@ function imagemParaBase64(url) {
 
 // Exporta somente os selecionados
 async function gerarExcel() {
+    
     const marcados = idsSelecionados();
     if (!marcados.length) return null;
     const itens = reembolsos.filter(r => marcados.includes(r.id)).sort((a, b) => a.data.localeCompare(b.data));
@@ -1351,7 +1371,8 @@ async function gerarExcel() {
     set('J', { formula: `SUM(J6:J${ini - 1})` }, MOEDA);
 
     const buffer = await wb.xlsx.writeBuffer();
-    const resp = [...new Set(itens.map(r => r.responsavel))];
+    const resp = [...new Set(itens.map(r => r.responsavel).filter(Boolean))];
+
     const nome = (soGeral ? 'Geral_' : '') + (resp.length === 1 ? resp[0].replace(/\s+/g, '_') + '_' : '') + hojeISO();
     return { buffer, nome: `Solicitacao_Reembolso_${nome}.xlsx`, itens };
 }
@@ -1448,7 +1469,8 @@ async function enviarPorEmail() {
     if (!x) return avisoSelecionar();
     const arquivos = [...new Set(x.itens.flatMap(r => r.despesas.flatMap(d => d.arquivos)))];
     const total = x.itens.reduce((a, r) => a + totalRegistro(r), 0);
-    const resp = [...new Set(x.itens.map(r => r.responsavel))].join(', ');
+    const resp = [...new Set(x.itens.map(r => r.responsavel).filter(Boolean))].join(', ');
+
     emailCtx = { ...x, arquivos, total, resp };
 
     $('emailPara').value = Store.get('app_reembolso_email') || '';
@@ -1581,8 +1603,11 @@ const out = await resp.json().catch(() => ({}));
             throw new Error('Gmail: ' + (out.error?.message || resp.status));
         }
 
-        await postSheets({ action: 'marcarEnviado', ids, para: paraTxt }).catch(() => {});
-        marcarLocalEnviado(c, paraTxt);
+        if (auto) {
+    await postSheets({ action: 'marcarEnviado', ids, para: paraTxt }).catch(() => {});
+    marcarLocalEnviado(c, paraTxt);
+}
+
         fecharModal('modalEmail');
 
         const aviso = ax.fora ? ` • ${ax.fora} comprovante(s) não anexado(s)` : '';
@@ -1613,12 +1638,15 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 }
 
 let promptInstalacao = null;
-const jaInstalado = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const jaInstalado = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const BTNS_INSTALAR = ['btnInstalar', 'btnInstalarLogin'];
-const mostrarBtnInstalar = () => BTNS_INSTALAR.forEach(id => { $(id).classList.remove('hidden'); $(id).classList.add('flex'); });
+const mostrarBtnInstalar = () => { if (jaInstalado) return; BTNS_INSTALAR.forEach(id => { $(id).classList.remove('hidden'); $(id).classList.add('flex'); }); };
 const esconderBtnInstalar = () => BTNS_INSTALAR.forEach(id => { $(id).classList.add('hidden'); $(id).classList.remove('flex'); });
 
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); promptInstalacao = e; mostrarBtnInstalar(); });
 window.addEventListener('appinstalled', esconderBtnInstalar);
+if (isIOS || isAndroid) setTimeout(mostrarBtnInstalar, isIOS ? 0 : 3000);
+
 
 async function instalarApp() {
     if (promptInstalacao) {
