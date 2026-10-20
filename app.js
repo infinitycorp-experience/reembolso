@@ -938,35 +938,42 @@ function montarCorpoEmail(itens, msg) {
     </div>`;
 }
 
-function corpoTexto(c, msg, excelId) {
-    const L = [];
-    if (msg) L.push(msg, '');
-    L.push('SOLICITAÇÃO DE REEMBOLSO', `Responsável: ${c.resp}`, `Total: ${brl(c.total)}`, '');
+/* ---------- Corpo HTML (igual ao modelo antigo, sem links) ---------- */
+function corpoHtml(c, msg) {
+    const datas = c.itens.flatMap(r => [r.data, ...r.despesas.map(d => d.data)]).filter(Boolean).sort();
+    const th = 'style="background:#0f172a;color:#fff;padding:8px 10px;text-align:left;font-size:13px"';
+    const td = 'style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px"';
+    const linhas = [];
     c.itens.forEach(r => {
-        L.push(`• ${dataBR(r.data)} - ${r.modo === 'Geral' ? 'Geral' : r.cliente}: ${brl(totalRegistro(r))}`);
-        r.despesas.forEach(d => L.push(`   - ${d.categoria} ${brl(d.valor)}${d.arquivos.length ? ' | ' + d.arquivos.map(urlArquivo).join(' ') : ''}`));
+        const vis = r.modo === 'Geral' ? 'Geral' : esc(r.cliente);
+        const base = custoBase(r);
+        if (base > 0) linhas.push([dataBR(r.data), vis, r.modo === 'Particular' ? 'Quilometragem' : 'Aluguel', '', base]);
+        r.despesas.forEach(d => linhas.push([dataBR(d.data), vis, esc(d.categoria), esc(infoEst(d)), d.valor]));
     });
-    L.push('', `Planilha Excel: ${urlArquivo(excelId)}`);
-    return L.join('\n');
+    return `<div style="font-family:Arial,sans-serif;color:#1e293b">
+        ${msg ? `<p style="font-size:14px">${esc(msg).replace(/\n/g, '<br>')}</p>` : ''}
+        <h2 style="margin:0 0 10px">Solicitação de Reembolso</h2>
+        <p style="font-size:14px;line-height:1.6;margin:0 0 14px">
+            <b>Responsável:</b> ${esc(c.resp)}<br>
+            <b>Período:</b> ${dataBR(datas[0])} a ${dataBR(datas[datas.length - 1])}<br>
+            <b>Lançamentos:</b> ${c.itens.length}</p>
+        <table cellspacing="0" style="border-collapse:collapse;width:100%;max-width:900px">
+            <tr><th ${th}>Data</th><th ${th}>Visita</th><th ${th}>Descrição</th><th ${th}>Estabelecimento / CNPJ</th><th ${th} align="right">Valor</th></tr>
+            ${linhas.map(l => `<tr><td ${td}>${l[0]}</td><td ${td}>${l[1]}</td><td ${td}>${l[2]}</td><td ${td}>${l[3]}</td><td ${td} align="right">${brl(l[4])}</td></tr>`).join('')}
+            <tr><td ${th} colspan="4"><b>TOTAL</b></td><td ${th} align="right"><b>${brl(c.total)}</b></td></tr>
+        </table>
+        <p style="font-size:12px;color:#94a3b8;margin-top:14px">Planilha e comprovantes em anexo • Enviado pela Central de Reembolsos.</p>
+    </div>`;
 }
 
-function abrirGmail(para, cc, assunto, corpo, janela) {
-    const q = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-    if (!isMobile()) {
-         const url = `https://mail.google.com/mail/u/${encodeURIComponent(sessao?.email || 0)}/?view=cm&fs=1&` + q({ to: para, cc, su: assunto, body: corpo });
-        janela ? (janela.location.href = url) : window.open(url, '_blank');
-        return;
-    }
-    const mailto = `mailto:${para}?` + q({ cc, subject: assunto, body: corpo });
-    if (isIOS) {
-        location.href = 'googlegmail://co?' + q({ to: para, cc, subject: assunto, body: corpo });
-        setTimeout(() => { if (!document.hidden) location.href = mailto; }, 1500);
-    } else {
-        location.href = mailto;
-    }
+function marcarLocalEnviado(c, para) {
+    const agora = new Date().toISOString();
+    c.itens.forEach(i => { const r = reembolsos.find(x => x.id === i.id); if (r) { r.enviadoEm = agora; r.enviadoPara = para; } });
+    renderizarTabela();
 }
 
-async function confirmarEnvioEmail(modo) {
+/* ---------- Ação dos botões (ambos com anexos) ---------- */
+async function confirmarEnvioEmail(modo = 'auto') {
     const para = listaEmails($('emailPara').value), cc = listaEmails($('emailCc').value);
     const invalido = !para.length || [...para, ...cc].some(e => !emailOk(e));
     $('emailErro').classList.toggle('hidden', !invalido);
@@ -975,52 +982,72 @@ async function confirmarEnvioEmail(modo) {
     Store.set('app_reembolso_email', para.join(', '));
     Store.set('app_reembolso_cc', cc.join(', '));
 
-    const c = emailCtx, msg = $('emailMsg').value.trim();
-    const ids = c.itens.map(r => r.id);
-    const marcarLocal = () => {
-        const em = new Date().toISOString();
-        ids.forEach(id => { const r = reembolsos.find(x => x.id === id); if (r) { r.enviadoEm = em; r.enviadoPara = para.join(', '); } });
-        renderizarTabela();
-    };
-
+    const c = emailCtx, msg = $('emailMsg').value.trim(), auto = modo === 'auto';
+    const ids = c.itens.map(r => r.id), paraTxt = para.join(', ');
     const assunto = `Solicitação de Reembolso - ${c.resp} - ${brl(c.total)}`;
-    const janela = modo === 'gmail' && !isMobile() ? window.open('', '_blank') : null;
 
-    const btns = document.querySelectorAll('#modalEmail button');
-    const btn = $(modo === 'auto' ? 'btnEnviarAgora' : 'btnAbrirGmail'), orig = btn.innerHTML;
+    const tokenP = obterTokenGmail();           // pop-up Google antes de qualquer await
+    tokenP.catch(() => {});
+
+    const btns = [$('btnEnviarAgora'), $('btnAbrirGmail')], btn = auto ? btns[0] : btns[1], orig = btn.innerHTML;
     btns.forEach(b => b.disabled = true);
-    btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> ${modo === 'auto' ? 'Enviando...' : 'Preparando...'}`;
+    btn.innerHTML = spin('Autorizando...');
+
     try {
-        const excelB64 = await bufferParaB64(c.buffer);
-        if (modo === 'auto') {
-            const r = await (await postSheets({
-                action: 'email', para: para.join(','), cc: cc.join(','), assunto, ids,
-                html: montarCorpoEmail(c.itens, msg), excel: { nome: c.nome, data: excelB64 }, arquivos: c.arquivos
-            })).json();
-            if (r.erro) throw new Error(r.erro);
-            marcarLocal();
-            fecharModal('modalEmail');
-            mostrarResultado('ok', 'E-mail enviado!', `Para: ${para.join(', ')}`,
-                cardsResumo([['Planilha', '1'], ['Anexos', r.anexos ?? '—'], ['Total', brl(c.total)]]) +
-                (r.faltaram ? `<p class="text-[10px] text-amber-600 font-semibold mt-2">${r.faltaram} comprovante(s) foram só como link, por causa do limite de tamanho.</p>` : ''));
-        } else {
-            const up = await (await postSheets({ action: 'upload', mime: XLSX_MIME, nome: c.nome, data: excelB64 })).json();
-            if (up.erro) throw new Error(up.erro);
-            abrirGmail(para.join(','), cc.join(','), assunto, corpoTexto(c, msg, up.arquivoId), janela);
-            postSheets({ action: 'marcarEnviado', ids, para: para.join(',') }).catch(() => {});
-            marcarLocal();
-            fecharModal('modalEmail');
-            mostrarResultado('ok', 'Rascunho aberto no Gmail', 'Confira o e-mail e toque em Enviar no Gmail.',
-                cardsResumo([['Lançamentos', c.itens.length], ['Links', c.arquivos.length + 1], ['Total', brl(c.total)]]));
+        const token = await tokenP;
+        const ui = await (await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + token } })).json();
+        if (String(ui.email || '').toLowerCase() !== sessao.email) {
+            tokenGmail = null;
+            throw new Error(`Conta Google (${ui.email || '?'}) diferente do login (${sessao.email}).`);
         }
+
+        btn.innerHTML = spin('Anexando...');
+        const excelB64 = await bufferParaB64(c.buffer);
+        const ax = c.arquivos.length
+            ? await (await postSheets({ action: 'anexos', ids: c.arquivos })).json()
+            : { arquivos: [], fora: 0 };
+        if (ax.erro) throw new Error(ax.erro);
+
+        const mime = montarMime({
+            de: `${sessao.nome || ''} <${sessao.email}>`, para: paraTxt, cc: cc.join(', '),
+            assunto, corpo: corpoHtml(c, msg),
+            anexos: [{ nome: c.nome, mime: XLSX_MIME, data: excelB64 }, ...ax.arquivos]
+        });
+
+        btn.innerHTML = spin(auto ? 'Enviando...' : 'Criando rascunho...');
+        const url = `https://gmail.googleapis.com/upload/gmail/v1/users/me/${auto ? 'messages/send' : 'drafts'}?uploadType=media`;
+        const resp = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'message/rfc822' }, body: mime });
+        const out = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            if (resp.status === 401) tokenGmail = null;
+            throw new Error('Gmail: ' + (out.error?.message || resp.status));
+        }
+
+        await postSheets({ action: 'marcarEnviado', ids, para: paraTxt }).catch(() => {});
+        marcarLocalEnviado(c, paraTxt);
+        fecharModal('modalEmail');
+
+        const aviso = ax.fora ? ` • ${ax.fora} comprovante(s) não anexado(s) (limite de tamanho)` : '';
+        const cards = cardsResumo([['Lançamentos', c.itens.length], ['Anexos', ax.arquivos.length + 1], ['Total', brl(c.total)]]);
+
+        if (auto) return mostrarResultado('ok', 'E-mail enviado!', `De ${sessao.email} para ${paraTxt}${aviso}`, cards);
+
+        const conta = encodeURIComponent(sessao.email);
+        const link = isMobile()
+            ? `https://mail.google.com/mail/u/${conta}/#drafts`
+            : `https://mail.google.com/mail/u/${conta}/#drafts?compose=${out.message?.id || ''}`;
+        mostrarResultado('ok', 'Rascunho criado no Gmail', `Com todos os anexos. Confira e clique em Enviar.${aviso}`, cards);
+        $('resAcoes').innerHTML = `
+            <button onclick="fecharModal('modalResultado')" class="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition">Fechar</button>
+            <a href="${link}" target="_blank" rel="noopener" onclick="fecharModal('modalResultado')" class="flex-1 py-2.5 rounded-xl bg-[#ea4335] hover:bg-[#c5221f] text-white text-xs font-bold transition flex items-center justify-center gap-1.5"><i class="fa-brands fa-google"></i> Abrir rascunho</a>`;
     } catch (e) {
-        janela?.close();
-        mostrarResultado('erro', 'Falha no envio', e.message || 'Verifique a conexão.');
+        if (sessao) mostrarResultado('erro', auto ? 'Falha no envio' : 'Falha ao criar rascunho', e.message || 'Verifique a conexão.');
     } finally {
         btns.forEach(b => b.disabled = false);
         btn.innerHTML = orig;
     }
 }
+
 
 /* =====================================================================
    PWA
@@ -1113,4 +1140,3 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW não registrado:', err));
 }
 if (isIOS || isAndroid) setTimeout(mostrarBtnInstalar, isIOS ? 0 : 3000);
-
