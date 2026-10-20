@@ -1568,9 +1568,14 @@ async function confirmarEnvioEmail(modo = 'auto') {
         });
 
         btn.innerHTML = spin(auto ? 'Enviando...' : 'Criando rascunho...');
-        const url = `https://gmail.googleapis.com/upload/gmail/v1/users/me/${auto ? 'messages/send' : 'drafts'}?uploadType=media`;
-        const resp = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'message/rfc822' }, body: mime });
-        const out = await resp.json().catch(() => ({}));
+        const raw = btoa(mime).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const url = `https://gmail.googleapis.com/gmail/v1/users/me/${auto ? 'messages/send' : 'drafts'}`;
+const resp = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(auto ? { raw } : { message: { raw } })
+});
+const out = await resp.json().catch(() => ({}));
         if (!resp.ok) {
             if (resp.status === 401) tokenGmail = null;
             throw new Error('Gmail: ' + (out.error?.message || resp.status));
