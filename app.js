@@ -115,7 +115,7 @@ function setCloudStatus(status, text) {
 }
 
 async function carregarDadosDoSheets() {
-    setCloudStatus('carregando', 'Conectando ao Google Sheets...');
+    setCloudStatus('carregando', 'Conectando ao Servidor...');
     try {
 
         const resp = await postSheets({ action: 'list' });
@@ -123,12 +123,12 @@ async function carregarDadosDoSheets() {
         if (!Array.isArray(dados)) throw new Error(dados.erro || 'Falha');
         reembolsos = dados.map(normalizar);
         
-        setCloudStatus('sucesso', 'Google Sheets Ativo');
+        setCloudStatus('sucesso', 'Servidor Conectado');
         atualizarSeletorResponsaveis();
         renderizarTabela();
     } catch (e) {
         console.error(e);
-        setCloudStatus('erro', 'Planilha Desconectada');
+        setCloudStatus('erro', 'Servidor Desconectada');
         const msg = 'Não foi possível carregar. Verifique a conexão.';
         $('tabelaBody').innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-400">${msg}</td></tr>`;
         $('listaMobile').innerHTML = `<div class="text-center py-8 text-red-400 text-xs">${msg}</div>`;
@@ -291,13 +291,13 @@ function avisoSelecionar() {
 async function limparListaOuSelecionados() {
     const ids = idsSelecionados();
       if (!ids.length && !sessao?.admin) return avisoSelecionar();
-    const msg = ids.length ? `Remover os ${ids.length} lançamentos selecionados do Google Sheets?` : 'Apagar TODOS os registros da planilha?';
+    const msg = ids.length ? `Remover os ${ids.length} lançamentos selecionados do Servidor?` : 'Apagar TODOS os registros do Servidor?';
     if (!confirm(msg)) return;
     const btn = $('btnLimpar');
     btn.disabled = true;
-    setCloudStatus('carregando', 'Removendo...');
+    setCloudStatus('carregando', 'Excluindo...');
     try { await postSheets(ids.length ? { action: 'deleteSelected', ids } : { action: 'clearAll' }); }
-    catch { alert('Erro ao conectar ao Sheets.'); }
+    catch { alert('Erro ao conectar ao Servidor.'); }
     await carregarDadosDoSheets();
     btn.disabled = false;
 }
@@ -623,7 +623,7 @@ async function lerComprovante(input) {
     input.value = '';
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) return ocrMsg('❌ Arquivo acima de 10 MB', 'erro');
-    ocrMsg('<i class="fa-solid fa-spinner animate-spin"></i> Lendo comprovante... (pode levar até 30s)', 'info');
+    ocrMsg('<i class="fa-solid fa-spinner animate-spin"></i> Lendo comprovante... (isso pode levar até 30s)', 'info');
     try {
         const { mime, b64 } = await prepararArquivo(file);
         const r = await (await postSheets({ action: 'ocr', mime, data: b64 })).json();
