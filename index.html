@@ -109,7 +109,7 @@
                     <h2 class="text-md font-bold text-slate-800 flex items-center gap-2">
                         <i class="fa-solid fa-wallet text-indigo-600 text-sm"></i> <span>Selecionar Reembolsos</span>
                     </h2>
-                    <p class="text-[11px] text-slate-400">Visitas a clientes e reembolsos gerais (fim de mês). Use os filtros para montar a exportação.</p>
+                    <p class="text-[11px] text-slate-400">Visitas e reembolsos gerais (fim de mês). Use os filtros para montar a exportação.</p>
                 </div>
                 <div id="boxFiltroResp" class="hidden relative w-full md:w-auto">
                     <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Filtrar Responsável:</label>
@@ -224,7 +224,7 @@
 
         <form id="reembolsoForm" onsubmit="salvarReembolso(event)" class="p-4 space-y-3 flex-1">
             <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl">
-                <button type="button" data-lanc="Visita" onclick="setLancamento('Visita')" class="tab-lanc">🏢 Visita Específica</button>
+                <button type="button" data-lanc="Visita" onclick="setLancamento('Visita')" class="tab-lanc">🏢 Reembolso de Visita Específica</button>
                 <button type="button" data-lanc="Geral" onclick="setLancamento('Geral')" class="tab-lanc">🗓️ Reembolso Geral (Mês)</button>
             </div>
             <p id="dicaLanc" class="text-[10px] text-slate-400 -mt-1"></p>
@@ -260,7 +260,7 @@
 
             <div>
                 <label class="lbl">Observação (opcional)</label>
-                <input type="text" id="formRelato" placeholder="Ex: Reunião de implantação com o TI do cliente" class="inp">
+                <input type="text" id="formRelato" placeholder="Informe qualquer observação para ajudar a identificação " class="input">
             </div>
 
             <!-- KM (Particular) -->
