@@ -52,6 +52,8 @@
 
         /* ===== MOBILE / PWA ===== */
         body { padding-bottom: max(12px, env(safe-area-inset-bottom)); -webkit-tap-highlight-color: transparent; }
+        html, body { overflow-x: hidden; }
+
         @media (max-width: 767px) {
             input, select, textarea { font-size: 16px !important; }
             #grupoTipo, #grupoDias, #tiposExtras { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
@@ -66,23 +68,25 @@
 <body class="min-h-screen p-3 md:p-6">
 
 <div class="max-w-6xl mx-auto">
-    <!-- HEADER -->
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-        <div class="flex items-center gap-3">
-            <div class="logo-box"><i class="fa-solid fa-sack-dollar"></i></div>
-            <div>
-                <h1 class="text-xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2 flex-wrap">
-                    <span>Central de Reembolsos</span>
-                    <span id="cloudStatus" class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-semibold border border-emerald-100 flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Google Sheets Ativo
-                    </span>
-                </h1>
-                <p id="usuarioInfo" class="hidden text-[11px] text-slate-400 font-semibold mt-0.5">
+<!-- HEADER -->
+<div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-3 sm:mb-6 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100">
+    <div class="flex items-center gap-3 min-w-0">
+        <div class="logo-box"><i class="fa-solid fa-sack-dollar"></i></div>
+        <div class="min-w-0">
+            <h1 class="text-lg sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight">Central de Reembolsos</h1>
+            <div class="flex items-center gap-1.5 flex-wrap mt-1">
+                <span id="cloudStatus" class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-semibold border border-emerald-100 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Google Sheets Ativo
+                </span>
+                <span id="usuarioInfo" class="hidden text-[11px] text-slate-400 font-semibold inline-flex items-center gap-1">
                     <i class="fa-solid fa-circle-user"></i> <span id="usuarioNome"></span>
-                    <span id="usuarioAdmin" class="hidden ml-1 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-100 text-[9px] uppercase">Admin</span>
-                </p>
+                    <span id="usuarioAdmin" class="hidden px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-100 text-[9px] uppercase">Admin</span>
+                </span>
             </div>
         </div>
+    </div>
+    <!-- (div dos botões continua igual) -->
+
         <div class="flex gap-2 w-full sm:w-auto">
             <button id="btnInstalar" onclick="instalarApp()" class="hidden flex-1 sm:flex-none border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-600 font-semibold py-2 px-3 rounded-xl text-xs items-center justify-center gap-1.5 transition">
                 <i class="fa-solid fa-download text-[10px]"></i> Instalar App
@@ -98,8 +102,9 @@
 
     <!-- TABELA -->
     <div class="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden">
-        <div class="p-5 border-b border-slate-100 bg-slate-50/50">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+        <div class="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50">
+           <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-3">
+
                 <div>
                     <h2 class="text-md font-bold text-slate-800 flex items-center gap-2">
                         <i class="fa-solid fa-wallet text-indigo-600 text-sm"></i> <span>Selecionar Reembolsos</span>
@@ -118,14 +123,17 @@
                 </div>
             </div>
 
-            <div class="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8 pt-1.5 border-t border-slate-100/60">
-                <div class="flex flex-wrap items-center gap-1.5 text-[11px] opacity-60 hover:opacity-100 transition" id="grupoTipo">
-                    <span class="font-bold text-slate-400 tracking-wide uppercase mr-1">Filtrar Tipo:</span>
-                </div>
-                <div class="flex flex-wrap items-center gap-1.5 text-[11px]" id="grupoDias">
-                    <span class="font-bold text-slate-400 tracking-wide uppercase mr-1">Filtrar Dias:</span>
-                </div>
-            </div>
+            <div class="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-8 pt-1.5 border-t border-slate-100/60">
+    <div class="flex items-center gap-2 min-w-0">
+        <span class="shrink-0 w-[84px] lg:w-auto text-[11px] font-bold text-slate-400 tracking-wide uppercase">Filtrar Tipo:</span>
+        <div id="grupoTipo" class="flex flex-wrap items-center gap-1.5 text-[11px] min-w-0 flex-1 opacity-60 hover:opacity-100 transition"></div>
+    </div>
+    <div class="flex items-center gap-2 min-w-0">
+        <span class="shrink-0 w-[84px] lg:w-auto text-[11px] font-bold text-slate-400 tracking-wide uppercase">Filtrar Dias:</span>
+        <div id="grupoDias" class="flex flex-wrap items-center gap-1.5 text-[11px] min-w-0 flex-1"></div>
+    </div>
+</div>
+
         </div>
 
         <!-- Desktop: tabela -->
@@ -739,22 +747,34 @@ function renderizarTabela() {
         <button onclick="editarRegistro(${r.id})" class="text-slate-400 hover:text-indigo-600 p-1.5"><i class="fa-regular fa-pen-to-square text-[14px]"></i></button>
         <button onclick="deletarRegistro(${r.id})" class="text-slate-400 hover:text-red-500 p-1.5"><i class="fa-regular fa-trash-can text-[14px]"></i></button>`;
 
-    if (mqMobile.matches) {
-        cards.innerHTML = lista.length ? lista.map(r => {
-            const x = dados(r);
-            return `<div class="p-4 flex gap-3 ${r.enviadoEm ? 'bg-emerald-50/30' : ''}">
-                <div class="pt-0.5">${chk(r)}</div>
-                <div class="flex-1 min-w-0 space-y-1">
-                    <div class="flex justify-between items-start gap-2">
-                        <span class="font-bold text-slate-800 text-sm">${x.cliente}</span>
-                        <span class="font-extrabold text-indigo-600 text-sm whitespace-nowrap">${x.custo}</span>
-                    </div>
-                    <div class="text-[11px] text-slate-400">${dataBR(r.data)} • ${esc(r.responsavel)}${!x.geral && r.pontoPartida ? ' • ' + esc(r.pontoPartida) : ''}</div>
-                    <div class="flex items-center gap-2 pt-1">${acoes(r)}</div>
+if (mqMobile.matches) {
+    const btnIco = (fn, id, ico, cor) => `<button onclick="${fn}(${id})" class="text-slate-400 hover:text-${cor} p-1.5"><i class="${ico} text-[13px]"></i></button>`;
+    cards.innerHTML = lista.length ? lista.map(r => {
+        const x = dados(r);
+        const titulo = x.geral
+            ? `${badgeModo('Geral')} <span class="text-[10px] font-semibold text-slate-400 whitespace-nowrap">${r.despesas.length} desp.</span>`
+            : `<span class="truncate">${esc(r.cliente)}</span>`;
+        const env = r.enviadoEm ? `<i class="fa-solid fa-paper-plane text-emerald-600 text-[9px] mr-1" title="Enviado para ${esc(r.enviadoPara)}"></i>` : '';
+        return `<div class="px-3 py-2.5 flex items-center gap-3 ${r.enviadoEm ? 'bg-emerald-50/30' : ''}">
+            ${chk(r)}
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 min-w-0 font-bold text-slate-800 text-sm">${titulo}</div>
+                    <span class="font-extrabold text-indigo-600 text-sm whitespace-nowrap">${x.custo}</span>
                 </div>
-            </div>`;
-        }).join('') : `<div class="text-center py-8 text-slate-400 text-xs">${vazio}</div>`;
-    } else {
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-[11px] text-slate-400 truncate">${env}${dataBR(r.data)} • ${esc(r.responsavel)}</span>
+                    <div class="flex items-center shrink-0 -mr-1.5">
+                        ${btnIco('verDetalhes', r.id, 'fa-regular fa-eye', 'indigo-600')}
+                        ${btnIco('editarRegistro', r.id, 'fa-regular fa-pen-to-square', 'indigo-600')}
+                        ${btnIco('deletarRegistro', r.id, 'fa-regular fa-trash-can', 'red-500')}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).join('') : `<div class="text-center py-8 text-slate-400 text-xs">${vazio}</div>`;
+}
+ else {
         body.innerHTML = lista.length ? lista.map(r => {
             const x = dados(r);
             return `<tr class="hover:bg-slate-50/50 transition ${r.enviadoEm ? 'bg-emerald-50/30' : ''}">
