@@ -76,7 +76,7 @@
             <h1 class="text-lg sm:text-xl font-extrabold text-slate-800 tracking-tight leading-tight">Central de Reembolsos</h1>
             <div class="flex items-center gap-1.5 flex-wrap mt-1">
                 <span id="cloudStatus" class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-semibold border border-emerald-100 flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Google Sheets Ativo
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Servidor Ativo
                 </span>
                 <span id="usuarioInfo" class="hidden text-[11px] text-slate-400 font-semibold inline-flex items-center gap-1">
                     <i class="fa-solid fa-circle-user"></i> <span id="usuarioNome"></span>
@@ -156,7 +156,7 @@
                     <tr><td colspan="7" class="text-center py-12">
                         <div class="flex flex-col items-center gap-3">
                             <div class="circulo-multicolor"></div>
-                            <span class="text-slate-500 font-semibold">Carregando dados do Google Sheets...</span>
+                            <span class="text-slate-500 font-semibold">Carregando dados do Servidor...</span>
                         </div>
                     </td></tr>
                 </tbody>
@@ -171,7 +171,7 @@
             <div id="listaMobile" class="divide-y divide-slate-100">
                 <div class="flex flex-col items-center gap-3 py-12">
                     <div class="circulo-multicolor"></div>
-                    <span class="text-slate-500 font-semibold text-xs">Carregando dados do Google Sheets...</span>
+                    <span class="text-slate-500 font-semibold text-xs">Carregando dados do Servidor...</span>
                 </div>
             </div>
         </div>
@@ -628,13 +628,13 @@ function setCloudStatus(status, text) {
 
 async function carregarDadosDoSheets() {
     if (!sessao) return;
-    setCloudStatus('carregando', 'Conectando ao Google Sheets...');
+    setCloudStatus('carregando', 'Conectando ao Servidor...');
     try {
         const dados = await (await postSheets({ action: 'list' })).json();
         if (!sessao) return; // sessão caiu durante a chamada
         if (!Array.isArray(dados)) throw new Error(dados.erro || 'Falha');
         reembolsos = dados.map(normalizar);
-        setCloudStatus('sucesso', 'Google Sheets Ativo');
+        setCloudStatus('sucesso', 'Servidor Ativo');
         atualizarSeletorResponsaveis();
         renderizarTabela();
     } catch (e) {
@@ -1091,7 +1091,7 @@ async function salvarReembolso(e) {
         fecharModalForm();
         await carregarDadosDoSheets();
     } catch (err) {
-        if (sessao) alert('Erro ao salvar no Google Sheets: ' + (err.message || 'verifique a conexão.'));
+        if (sessao) alert('Erro ao salvar no Servidor: ' + (err.message || 'verifique a conexão.'));
     } finally {
         btn.disabled = false;
         $('btnSalvarTexto').innerText = editingId !== null ? 'Atualizar Reembolso' : 'Salvar Reembolso';
