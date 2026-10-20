@@ -1,4 +1,4 @@
-const CACHE = 'reembolso-v8';
+const CACHE = 'reembolso-v9';
 const ARQS = ['./', './index.html', './manifest.json', './images/android-192x192.png', './images/android-512x512.png'];
 
 self.addEventListener('install', e => {
