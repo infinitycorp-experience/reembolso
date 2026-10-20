@@ -1423,14 +1423,16 @@ const cardsResumo = itens => `<div class="grid grid-cols-3 gap-2">${itens.map(([
     `<div class="bg-slate-50 border border-slate-100 rounded-xl p-2"><div class="text-sm font-extrabold text-slate-800">${v}</div><div class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">${k}</div></div>`).join('')}</div>`;
 
 /* =====================================================================
-   ENVIO POR E-MAIL (sempre pela conta do usuário logado)
+   ENVIO POR E-MAIL (conta Google do usuário, com anexos)
    ===================================================================== */
-const GOOGLE_CLIENT_ID = '939874592524-as2ssvluke0926osq5p6vtkrd8be3e2n.apps.googleusercontent.com.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '939874592524-as2ssvluke0926osq5p6vtkrd8be3e2n.apps.googleusercontent.com';
 
 let emailCtx = null, tokenGmail = null;
 const listaEmails = s => String(s || '').split(/[,;\s]+/).map(e => e.trim()).filter(Boolean);
 const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
 const spin = t => `<i class="fa-solid fa-spinner animate-spin"></i> ${t}`;
+const b64utf8 = s => btoa(unescape(encodeURIComponent(s)));
+const quebra76 = s => s.replace(/.{76}/g, '$&\r\n');
 
 function bufferParaB64(buf) {
     return new Promise((res, rej) => {
@@ -1444,7 +1446,6 @@ function bufferParaB64(buf) {
 async function enviarPorEmail() {
     const x = await gerarExcel();
     if (!x) return avisoSelecionar();
-
     const arquivos = [...new Set(x.itens.flatMap(r => r.despesas.flatMap(d => d.arquivos)))];
     const total = x.itens.reduce((a, r) => a + totalRegistro(r), 0);
     const resp = [...new Set(x.itens.map(r => r.responsavel))].join(', ');
@@ -1453,32 +1454,20 @@ async function enviarPorEmail() {
     $('emailPara').value = Store.get('app_reembolso_email') || '';
     $('emailCc').value = Store.get('app_reembolso_cc') || '';
     $('emailErro').classList.add('hidden');
+    $('emailPara').classList.remove('!border-red-400');
     $('emailResumo').innerHTML = [['Lançamentos', x.itens.length], ['Comprovantes', arquivos.length], ['Total', brl(total)]]
         .map(([k, v]) => `<div class="bg-white/15 rounded-xl p-2 text-center backdrop-blur"><div class="text-sm font-extrabold">${v}</div><div class="text-[9px] uppercase tracking-wider text-white/75 font-bold">${k}</div></div>`).join('');
     $('modalEmail').classList.remove('hidden');
     setTimeout(() => $('emailPara').focus(), 150);
 }
 
-function corpoTexto(c, msg, excelId) {
-    const L = [];
-    if (msg) L.push(msg, '');
-    L.push('SOLICITAÇÃO DE REEMBOLSO', `Responsável: ${c.resp}`, `Total: ${brl(c.total)}`, '');
-    c.itens.forEach(r => {
-        L.push(`• ${dataBR(r.data)} - ${r.modo === 'Geral' ? 'Geral' : r.cliente}: ${brl(totalRegistro(r))}`);
-        r.despesas.forEach(d => L.push(`   - ${d.categoria} ${brl(d.valor)}${d.arquivos.length ? ' | ' + d.arquivos.map(urlArquivo).join(' ') : ''}`));
-    });
-    if (excelId) L.push('', `Planilha Excel: ${urlArquivo(excelId)}`);
-    return L.join('\n');
-}
-
-/* ---------- Autorização Google (conta do usuário) ---------- */
 function obterTokenGmail() {
     return new Promise((res, rej) => {
         if (tokenGmail && tokenGmail.email === sessao.email && tokenGmail.exp > Date.now()) return res(tokenGmail.v);
         if (!window.google?.accounts?.oauth2) return rej(new Error('Login Google não carregou. Recarregue a página.'));
         google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
-            scope: 'openid email https://www.googleapis.com/auth/gmail.send',
+            scope: 'openid email https://www.googleapis.com/auth/gmail.compose',
             login_hint: sessao.email,
             callback: r => {
                 if (r.error) return rej(new Error(r.error_description || r.error));
@@ -1491,10 +1480,6 @@ function obterTokenGmail() {
         }).requestAccessToken({ prompt: '' });
     });
 }
-
-/* ---------- Montagem do e-mail (MIME) ---------- */
-const b64utf8 = s => btoa(unescape(encodeURIComponent(s)));
-const quebra76 = s => s.replace(/.{76}/g, '$&\r\n');
 
 function montarMime({ de, para, cc, assunto, corpo, anexos }) {
     const bd = 'reemb_' + Date.now();
@@ -1514,21 +1499,28 @@ function montarMime({ de, para, cc, assunto, corpo, anexos }) {
     return L.join('\r\n');
 }
 
-
-/* ---------- Rascunho (Gmail Web / app) ---------- */
-function abrirGmail(para, cc, assunto, corpo, janela) {
-    const q = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-    if (!isMobile()) {
-        const conta = encodeURIComponent(sessao?.email || '0');
-        const url = `https://mail.google.com/mail/u/${conta}/?view=cm&fs=1&` + q({ to: para, cc, su: assunto, body: corpo });
-        janela ? (janela.location.href = url) : window.open(url, '_blank');
-        return;
-    }
-    const mailto = `mailto:${para}?` + q({ cc, subject: assunto, body: corpo });
-    if (isIOS) {
-        location.href = 'googlegmail://co?' + q({ to: para, cc, subject: assunto, body: corpo });
-        setTimeout(() => { if (!document.hidden) location.href = mailto; }, 1500);
-    } else location.href = mailto;
+function corpoHtml(c, msg) {
+    const datas = c.itens.flatMap(r => [r.data, ...r.despesas.map(d => d.data)]).filter(Boolean).sort();
+    const th = 'style="background:#0f172a;color:#fff;padding:8px 10px;text-align:left;font-size:13px"';
+    const td = 'style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px"';
+    const linhas = [];
+    c.itens.forEach(r => {
+        const vis = r.modo === 'Geral' ? 'Geral' : esc(r.cliente), base = custoBase(r);
+        if (base > 0) linhas.push([dataBR(r.data), vis, r.modo === 'Particular' ? 'Quilometragem' : 'Aluguel', '', base]);
+        r.despesas.forEach(d => linhas.push([dataBR(d.data), vis, esc(d.categoria), esc(infoEst(d)), d.valor]));
+    });
+    return `<div style="font-family:Arial,sans-serif;color:#1e293b">
+        ${msg ? `<p style="font-size:14px">${esc(msg).replace(/\n/g, '<br>')}</p>` : ''}
+        <h2 style="margin:0 0 10px">Solicitação de Reembolso</h2>
+        <p style="font-size:14px;line-height:1.6;margin:0 0 14px"><b>Responsável:</b> ${esc(c.resp)}<br>
+        <b>Período:</b> ${dataBR(datas[0])} a ${dataBR(datas[datas.length - 1])}<br><b>Lançamentos:</b> ${c.itens.length}</p>
+        <table cellspacing="0" style="border-collapse:collapse;width:100%;max-width:900px">
+            <tr><th ${th}>Data</th><th ${th}>Visita</th><th ${th}>Descrição</th><th ${th}>Estabelecimento / CNPJ</th><th ${th} align="right">Valor</th></tr>
+            ${linhas.map(l => `<tr><td ${td}>${l[0]}</td><td ${td}>${l[1]}</td><td ${td}>${l[2]}</td><td ${td}>${l[3]}</td><td ${td} align="right">${brl(l[4])}</td></tr>`).join('')}
+            <tr><td ${th} colspan="4"><b>TOTAL</b></td><td ${th} align="right"><b>${brl(c.total)}</b></td></tr>
+        </table>
+        <p style="font-size:12px;color:#94a3b8;margin-top:14px">Planilha e comprovantes em anexo • Enviado pela Central de Reembolsos.</p>
+    </div>`;
 }
 
 function marcarLocalEnviado(c, para) {
@@ -1537,8 +1529,7 @@ function marcarLocalEnviado(c, para) {
     renderizarTabela();
 }
 
-/* ---------- Ação dos botões ---------- */
-async function confirmarEnvioEmail(modo = 'gmail') {
+async function confirmarEnvioEmail(modo = 'auto') {
     const para = listaEmails($('emailPara').value), cc = listaEmails($('emailCc').value);
     const invalido = !para.length || [...para, ...cc].some(e => !emailOk(e));
     $('emailErro').classList.toggle('hidden', !invalido);
@@ -1551,140 +1542,57 @@ async function confirmarEnvioEmail(modo = 'gmail') {
     const ids = c.itens.map(r => r.id), paraTxt = para.join(', ');
     const assunto = `Solicitação de Reembolso - ${c.resp} - ${brl(c.total)}`;
 
-    // Abrir pop-ups ANTES de qualquer await (evita bloqueio do navegador)
-    const tokenP = auto ? obterTokenGmail() : null;
-    tokenP?.catch(() => {});
-    const janela = !auto && !isMobile() ? window.open('', '_blank') : null;
-
+    const tokenP = obterTokenGmail(); // pop-up antes de qualquer await
+    tokenP.catch(() => {});
     const btns = [$('btnEnviarAgora'), $('btnAbrirGmail')], btn = auto ? btns[0] : btns[1], orig = btn.innerHTML;
     btns.forEach(b => b.disabled = true);
-    btn.innerHTML = spin(auto ? 'Autorizando...' : 'Preparando...');
+    btn.innerHTML = spin('Autorizando...');
 
     try {
-        const excelB64 = await bufferParaB64(c.buffer);
-
-        if (auto) {
-            const token = await tokenP;
-            const ui = await (await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + token } })).json();
-            if (String(ui.email || '').toLowerCase() !== sessao.email) {
-                tokenGmail = null;
-                throw new Error(`Conta Google (${ui.email || '?'}) diferente do login (${sessao.email}).`);
-            }
-
-            btn.innerHTML = spin('Anexando...');
-            const ax = c.arquivos.length
-                ? await (await postSheets({ action: 'anexos', ids: c.arquivos })).json()
-                : { arquivos: [], fora: 0 };
-            if (ax.erro) throw new Error(ax.erro);
-
-            btn.innerHTML = spin('Enviando...');
-            const mime = montarMime({
-                de: `${sessao.nome || ''} <${sessao.email}>`, para: paraTxt, cc: cc.join(', '),
-                assunto, corpo: corpoTexto(c, msg),
-                anexos: [{ nome: c.nome, mime: XLSX_MIME, data: excelB64 }, ...ax.arquivos]
-            });
-            const resp = await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media', {
-                method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'message/rfc822' }, body: mime
-            });
-            if (!resp.ok) {
-                if (resp.status === 401) tokenGmail = null;
-                throw new Error('Gmail: ' + ((await resp.json().catch(() => ({}))).error?.message || resp.status));
-            }
-
-            await postSheets({ action: 'marcarEnviado', ids, para: paraTxt }).catch(() => {});
-            marcarLocalEnviado(c, paraTxt);
-            fecharModal('modalEmail');
-            mostrarResultado('ok', 'E-mail enviado!', `De ${sessao.email} para ${paraTxt}` +
-                (ax.fora ? ` • ${ax.fora} comprovante(s) não anexado(s) (limite de tamanho)` : ''),
-                cardsResumo([['Lançamentos', c.itens.length], ['Anexos', ax.arquivos.length + 1], ['Total', brl(c.total)]]));
-            return;
+        const token = await tokenP;
+        const ui = await (await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + token } })).json();
+        if (String(ui.email || '').toLowerCase() !== sessao.email) {
+            tokenGmail = null;
+            throw new Error(`Conta Google (${ui.email || '?'}) diferente do login (${sessao.email}).`);
         }
 
-        // Modo rascunho: sobe o Excel e abre o Gmail com links
-        const up = await (await postSheets({ action: 'upload', mime: XLSX_MIME, nome: c.nome, data: excelB64 })).json();
-        if (up.erro) throw new Error(up.erro);
-        abrirGmail(para.join(','), cc.join(','), assunto, corpoTexto(c, msg, up.arquivoId), janela);
+        btn.innerHTML = spin('Anexando...');
+        const excelB64 = await bufferParaB64(c.buffer);
+        const ax = c.arquivos.length ? await (await postSheets({ action: 'anexos', ids: c.arquivos })).json() : { arquivos: [], fora: 0 };
+        if (ax.erro) throw new Error(ax.erro);
 
-        postSheets({ action: 'marcarEnviado', ids, para: paraTxt }).catch(() => {});
+        const mime = montarMime({
+            de: `${sessao.nome || ''} <${sessao.email}>`, para: paraTxt, cc: cc.join(', '),
+            assunto, corpo: corpoHtml(c, msg),
+            anexos: [{ nome: c.nome, mime: XLSX_MIME, data: excelB64 }, ...ax.arquivos]
+        });
+
+        btn.innerHTML = spin(auto ? 'Enviando...' : 'Criando rascunho...');
+        const url = `https://gmail.googleapis.com/upload/gmail/v1/users/me/${auto ? 'messages/send' : 'drafts'}?uploadType=media`;
+        const resp = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'message/rfc822' }, body: mime });
+        const out = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            if (resp.status === 401) tokenGmail = null;
+            throw new Error('Gmail: ' + (out.error?.message || resp.status));
+        }
+
+        await postSheets({ action: 'marcarEnviado', ids, para: paraTxt }).catch(() => {});
         marcarLocalEnviado(c, paraTxt);
         fecharModal('modalEmail');
-        mostrarResultado('ok', 'Rascunho aberto no Gmail', 'Confira o e-mail e toque em Enviar no Gmail.',
-            cardsResumo([['Lançamentos', c.itens.length], ['Links', c.arquivos.length + 1], ['Total', brl(c.total)]]));
+
+        const aviso = ax.fora ? ` • ${ax.fora} comprovante(s) não anexado(s)` : '';
+        const cards = cardsResumo([['Lançamentos', c.itens.length], ['Anexos', ax.arquivos.length + 1], ['Total', brl(c.total)]]);
+        if (auto) return mostrarResultado('ok', 'E-mail enviado!', `De ${sessao.email} para ${paraTxt}${aviso}`, cards);
+
+        const link = `https://mail.google.com/mail/u/${encodeURIComponent(sessao.email)}/#drafts`;
+        mostrarResultado('ok', 'Rascunho criado no Gmail', `Com todos os anexos. Confira e clique em Enviar.${aviso}`, cards);
+        $('resAcoes').innerHTML = `
+            <button onclick="fecharModal('modalResultado')" class="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition">Fechar</button>
+            <a href="${link}" target="_blank" rel="noopener" onclick="fecharModal('modalResultado')" class="flex-1 py-2.5 rounded-xl bg-[#ea4335] hover:bg-[#c5221f] text-white text-xs font-bold transition flex items-center justify-center gap-1.5"><i class="fa-brands fa-google"></i> Abrir rascunho</a>`;
     } catch (e) {
-        janela?.close();
-        if (sessao) mostrarResultado('erro', auto ? 'Falha no envio' : 'Falha ao preparar', e.message || 'Verifique a conexão.');
+        if (sessao) mostrarResultado('erro', auto ? 'Falha no envio' : 'Falha ao criar rascunho', e.message || 'Verifique a conexão.');
     } finally {
         btns.forEach(b => b.disabled = false);
-        btn.innerHTML = orig;
-    }
-}
-
-
-function corpoTexto(c, msg, excelId) {
-    const L = [];
-    if (msg) L.push(msg, '');
-    L.push('SOLICITAÇÃO DE REEMBOLSO', `Responsável: ${c.resp}`, `Total: ${brl(c.total)}`, '');
-    c.itens.forEach(r => {
-        L.push(`• ${dataBR(r.data)} - ${r.modo === 'Geral' ? 'Geral' : r.cliente}: ${brl(totalRegistro(r))}`);
-        r.despesas.forEach(d => L.push(`   - ${d.categoria} ${brl(d.valor)}${d.arquivos.length ? ' | ' + d.arquivos.map(urlArquivo).join(' ') : ''}`));
-    });
-    L.push('', `Planilha Excel: ${urlArquivo(excelId)}`);
-    return L.join('\n');
-}
-
-function abrirGmail(para, cc, assunto, corpo, janela) {
-    const q = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-    if (!isMobile()) {   // Desktop: Gmail Web na conta do usuário logado
-        const conta = encodeURIComponent(sessao?.email || '0');
-        const url = `https://mail.google.com/mail/u/${conta}/?view=cm&fs=1&` + q({ to: para, cc, su: assunto, body: corpo });
-        janela ? (janela.location.href = url) : window.open(url, '_blank');
-        return;
-    }
-    const mailto = `mailto:${para}?` + q({ cc, subject: assunto, body: corpo });
-    if (isIOS) {         // iPhone: tenta o app do Gmail; se não abrir, usa o Mail
-        location.href = 'googlegmail://co?' + q({ to: para, cc, subject: assunto, body: corpo });
-        setTimeout(() => { if (!document.hidden) location.href = mailto; }, 1500);
-    } else {             // Android
-        location.href = mailto;
-    }
-}
-
-async function confirmarEnvioEmail() {
-    const para = listaEmails($('emailPara').value), cc = listaEmails($('emailCc').value);
-    const invalido = !para.length || [...para, ...cc].some(e => !emailOk(e));
-    $('emailErro').classList.toggle('hidden', !invalido);
-    $('emailPara').classList.toggle('!border-red-400', invalido);
-    if (invalido) return;
-    Store.set('app_reembolso_email', para.join(', '));
-    Store.set('app_reembolso_cc', cc.join(', '));
-
-    const c = emailCtx, msg = $('emailMsg').value.trim();
-    const ids = c.itens.map(r => r.id);
-    const assunto = `Solicitação de Reembolso - ${c.resp} - ${brl(c.total)}`;
-    const janela = !isMobile() ? window.open('', '_blank') : null; // abre antes do await (evita bloqueio de pop-up)
-
-    const btn = $('btnAbrirGmail'), orig = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Preparando...`;
-    try {
-        const excelB64 = await bufferParaB64(c.buffer);
-        const up = await (await postSheets({ action: 'upload', mime: XLSX_MIME, nome: c.nome, data: excelB64 })).json();
-        if (up.erro) throw new Error(up.erro);
-        abrirGmail(para.join(','), cc.join(','), assunto, corpoTexto(c, msg, up.arquivoId), janela);
-
-        postSheets({ action: 'marcarEnviado', ids, para: para.join(', ') }).catch(() => {});
-        const agora = new Date().toISOString();
-        c.itens.forEach(i => { const r = reembolsos.find(x => x.id === i.id); if (r) { r.enviadoEm = agora; r.enviadoPara = para.join(', '); } });
-        renderizarTabela();
-
-        fecharModal('modalEmail');
-        mostrarResultado('ok', 'Rascunho aberto no Gmail', 'Confira o e-mail e toque em Enviar no Gmail.',
-            cardsResumo([['Lançamentos', c.itens.length], ['Links', c.arquivos.length + 1], ['Total', brl(c.total)]]));
-    } catch (e) {
-        janela?.close();
-        if (sessao) mostrarResultado('erro', 'Falha ao preparar', e.message || 'Verifique a conexão.');
-    } finally {
-        btn.disabled = false;
         btn.innerHTML = orig;
     }
 }
