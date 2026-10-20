@@ -1,5 +1,5 @@
 const CACHE = 'reembolso-v9';
-const ARQS = ['./', './index.html', './manifest.json', './images/android-192x192.png', './images/android-512x512.png'];
+const ARQS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.allSettled(ARQS.map(a => c.add(a)))));
