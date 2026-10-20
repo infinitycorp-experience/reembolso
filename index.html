@@ -1498,11 +1498,13 @@ const quebra76 = s => s.replace(/.{76}/g, '$&\r\n');
 
 function montarMime({ de, para, cc, assunto, corpo, anexos }) {
     const bd = 'reemb_' + Date.now();
-    const L = [`From: ${de}`, `To: ${para}`];
+    const m = String(de).match(/^(.*)<(.+)>$/);
+    const from = m && m[1].trim() ? `=?UTF-8?B?${b64utf8(m[1].trim())}?= <${m[2]}>` : de;
+    const L = [`From: ${from}`, `To: ${para}`];
     if (cc) L.push(`Cc: ${cc}`);
     L.push(`Subject: =?UTF-8?B?${b64utf8(assunto)}?=`, 'MIME-Version: 1.0',
         `Content-Type: multipart/mixed; boundary="${bd}"`, '',
-        `--${bd}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', quebra76(b64utf8(corpo)));
+        `--${bd}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', quebra76(b64utf8(corpo)));
     anexos.forEach(a => {
         const nome = `=?UTF-8?B?${b64utf8(a.nome)}?=`;
         L.push(`--${bd}`, `Content-Type: ${a.mime}; name="${nome}"`, 'Content-Transfer-Encoding: base64',
@@ -1511,6 +1513,7 @@ function montarMime({ de, para, cc, assunto, corpo, anexos }) {
     L.push(`--${bd}--`);
     return L.join('\r\n');
 }
+
 
 /* ---------- Rascunho (Gmail Web / app) ---------- */
 function abrirGmail(para, cc, assunto, corpo, janela) {
