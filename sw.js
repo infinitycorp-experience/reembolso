@@ -1,4 +1,4 @@
-const CACHE = 'reembolso-v9';
+const CACHE = 'reembolso-v10';
 const ARQS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
